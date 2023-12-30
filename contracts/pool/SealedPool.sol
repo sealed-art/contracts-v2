@@ -257,32 +257,4 @@ contract SealedPool is EIP712, Ownable {
         // settleAuction verifies signatures on bid and bidWinner
         oldSealedMarket.settleAuctionWithSealedBids(oldSalts, nftOwner, nftContract, auctionType, nftId, reserve, bid, bidWinner);
     }
-
-    /*
-    event CounterIncreased(address account, uint256 newCounter);
-
-    function increaseCounter(uint256 newCounter) external {
-        require(newCounter > accountCounter[msg.sender], "too low");
-        accountCounter[msg.sender] = newCounter;
-        emit CounterIncreased(msg.sender, newCounter);
-    }
-
-    event OfferCancelled(address account, uint256 nonce);
-
-    function cancelOffer(uint256 nonce) external {
-        usedOrderNonces[msg.sender].set(nonce);
-        emit OfferCancelled(msg.sender, nonce);
-    }
-
-    function _verifyOffer(Offer calldata offer, address creator) private {
-        require(offer.deadline > block.timestamp, "!deadline");
-        require(orderNonces(creator, offer.nonce) == false, "!orderNonce");
-        usedOrderNonces[msg.sender].set(offer.nonce);
-        require(offer.counter > accountCounter[creator], "!counter");
-    }
-
-    function orderNonces(address account, uint256 nonce) public view returns (bool) {
-        return usedOrderNonces[account].get(nonce);
-    }
-    */
 }

@@ -12,7 +12,7 @@ interface ISealedPool {
     function deposit(address receiver) external payable;
 }
 
-contract SealedArtMarket is EIP712, Ownable {
+contract MintAuctions is EIP712, Ownable {
     using BitMaps for BitMaps.BitMap;
 
     // sequencer and settleSequencer are separated as an extra security measure against key leakage through side attacks
@@ -108,52 +108,54 @@ contract SealedArtMarket is EIP712, Ownable {
         emit OfferCancelled(msg.sender, nonce);
     }
 
-    function _verifyMintOffer(MintOffer calldata offer, address creator) view private {
+    function _verifyMintOffer(MintOffer memory offer, address creator) view private {
         require(offer.deadline > block.timestamp, "!deadline");
         require(offer.counter > accountCounter[creator], "!counter");
     }
 
-    function _verifyMintOfferAlways(MintOffer calldata offer, address creator) private {
+    function _verifyMintOfferAlways(MintOffer memory offer, address creator) private {
+        require(orderNonces(creator, offer.nonce) == false, "!orderNonce");
+        usedOrderNonces[msg.sender].set(offer.nonce);
+    }
+
+    function _verifyBuyerMintOfferAlways(BuyerMintOffer memory offer, address creator) private {
         require(orderNonces(creator, offer.nonce) == false, "!orderNonce");
         usedOrderNonces[msg.sender].set(offer.nonce);
     }
 
     event MintSale(address buyer, address seller, uint256 amount, address nftContract, string uri);
 
-    function settleMinted(
-        MintOffer calldata sellerOffer,
-        MintOffer calldata buyerOffer,
-        MintOfferAttestation calldata sequencerStamp,
+    fallback(bytes calldata data) external payable returns (bytes memory){
+       (address caller,
+        address buyer,
+        uint sequencerRank,
+        BuyerMintOffer memory buyerOffer,
+        MintOffer memory sellerOffer,
+        MintOfferAttestation memory sequencerStamp,
         address nftContract,
-        string calldata uri
-    ) external payable {
-        require(sequencerStamp.deadline > block.timestamp, "!deadline");
-        if (msg.sender != sequencerStamp.buyer) {
-            _verifyMintOffer(buyerOffer, sequencerStamp.buyer);
-            require(_verifyBuyMintOffer(buyerOffer) == sequencerStamp.buyer && sequencerStamp.buyer != address(0), "!buyer");
+        string memory uri) = abi.decode(data, (address, address, uint, BuyerMintOffer, MintOffer, MintOfferAttestation, address, string));
+
+        require(msg.sender == address(sealedPool) && sequencerRank == 2);
+        if (caller != buyer) {
+            require(buyerOffer.counter > accountCounter[buyer], "!counter");
         }
-        _verifyMintOfferAlways(buyerOffer, sequencerStamp.buyer);
-        if (msg.sender != sequencerStamp.seller) {
+        _verifyBuyerMintOfferAlways(buyerOffer, buyer);
+        if (caller != sequencerStamp.seller) {
             _verifyMintOffer(sellerOffer, sequencerStamp.seller);
             require(
                 _verifySellMintOffer(sellerOffer) == sequencerStamp.seller && sequencerStamp.seller != address(0), "!seller"
             );
         }
         _verifyMintOfferAlways(sellerOffer, sequencerStamp.seller);
-        require(_verifyMintOfferAttestation(sequencerStamp) == sequencer, "!sequencer");
         bytes32 mintHash = keccak256(abi.encode(nftContract, uri));
-        require(mintHash == sellerOffer.mintHash &&
-            mintHash == buyerOffer.mintHash && mintHash == sequencerStamp.mintHash, "!mintHash");
+        require(mintHash == sellerOffer.mintHash && mintHash == buyerOffer.mintHash, "!mintHash");
 
         require(UserCollection(nftContract).owner() == sequencerStamp.seller, "!owner");
-        require(buyerOffer.amount >= sequencerStamp.amount && sequencerStamp.amount >= sellerOffer.amount, "!amount");
-        if(msg.value < sequencerStamp.amount){
-            //_balances[sequencerStamp.buyer] -= sequencerStamp.amount;
-            //emit Transfer(sequencerStamp.buyer, address(0), sequencerStamp.amount);
-        }
-        UserCollection(nftContract).mintExtension(sequencerStamp.seller, uri);
-        _distributePrimarySale(sequencerStamp.amount, payable(sequencerStamp.seller)); // skip royalties since its a primary sale
-        emit MintSale(sequencerStamp.buyer, sequencerStamp.seller, sequencerStamp.amount, nftContract, uri);
+        require(msg.value >= sellerOffer.amount, "!amount");
+
+        UserCollection(nftContract).mintExtension(buyer, uri);
+        _distributePrimarySale(msg.value, payable(sequencerStamp.seller)); // skip royalties since its a primary sale
+        emit MintSale(buyer, sequencerStamp.seller, msg.value, nftContract, uri);
     }
 
     function orderNonces(address account, uint256 nonce) public view returns (bool) {

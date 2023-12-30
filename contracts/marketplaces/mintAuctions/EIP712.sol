@@ -14,25 +14,13 @@ abstract contract EIP712 is EIP712Base {
         uint256 nonce;
     }
 
-    function _verifyBuyMintOffer(MintOffer calldata packet) internal virtual returns (address) {
-        return _verifySig(
-            abi.encode(
-                keccak256(
-                    "BuyMintOffer(bytes32 mintHash,uint256 amount,uint256 deadline,uint256 counter,uint256 nonce)"
-                ),
-                packet.mintHash,
-                packet.amount,
-                packet.deadline,
-                packet.counter,
-                packet.nonce
-            ),
-            packet.v,
-            packet.r,
-            packet.s
-        );
+    struct BuyerMintOffer {
+        bytes32 mintHash;
+        uint256 counter;
+        uint256 nonce;
     }
 
-    function _verifySellMintOffer(MintOffer calldata packet) internal virtual returns (address) {
+    function _verifySellMintOffer(MintOffer memory packet) internal virtual returns (address) {
         return _verifySig(
             abi.encode(
                 keccak256(
@@ -51,31 +39,6 @@ abstract contract EIP712 is EIP712Base {
     }
 
     struct MintOfferAttestation {
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-        bytes32 mintHash;
-        uint256 amount;
-        address buyer;
         address seller;
-        uint256 deadline;
     } // No nonce cause nonce is already applied to buyer and seller packets
-
-    function _verifyMintOfferAttestation(MintOfferAttestation calldata packet) internal virtual returns (address) {
-        return _verifySig(
-            abi.encode(
-                keccak256(
-                    "MintOfferAttestation(bytes32 mintHash,uint256 amount,address buyer,address seller,uint256 deadline)"
-                ),
-                packet.mintHash,
-                packet.amount,
-                packet.buyer,
-                packet.seller,
-                packet.deadline
-            ),
-            packet.v,
-            packet.r,
-            packet.s
-        );
-    }
 }

@@ -1,6 +1,6 @@
 pragma solidity ^0.8.7;
 
-import "../EIP712.sol";
+import "./EIP712.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 
@@ -15,16 +15,11 @@ interface RoyaltyEngine {
         returns (address payable[] memory recipients, uint256[] memory amounts);
 }
 
-interface UserCollection {
-    function mintExtension(address to, string calldata uri) external returns (uint256);
-    function owner() external view returns (address);
-}
-
 interface ISealedPool {
     function deposit(address user) external payable;
 }
 
-contract SealedArtMarket is EIP712, Ownable {
+contract Auctions is EIP712, Ownable {
     using BitMaps for BitMaps.BitMap;
 
     // sequencer and settleSequencer are separated as an extra security measure against key leakage through side attacks

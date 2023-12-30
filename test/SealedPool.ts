@@ -22,12 +22,12 @@ describe("SealedArtMarket", function () {
 
         const chainIdHex = await network.provider.send('eth_chainId');
 
-        async function sign(signer: typeof sequencer, types: any, value: any) {
+        async function sign(signer: typeof sequencer, types: any, value: any, contract?:string) {
             const domain = {
                 name: "SealedArtMarket",
                 version: "1",
                 chainId: chainIdHex,
-                verifyingContract: await sa.getAddress()
+                verifyingContract: contract ?? await sa.getAddress()
             };
 
             const signature = await signer.signTypedData(domain, types, value);
@@ -76,9 +76,10 @@ describe("SealedArtMarket", function () {
 
     it("basic auction workflow", async function () {
         const { sa, sequencer, seller, buyer, sign, mockNFT, fundingFactory } = await loadFixture(deployExchangeFixture);
-        await mockNFT.mint(seller.address, 34)
-        mockNFT.connect(seller).setApprovalForAll(await sa.getAddress(), true)
-        sa.connect(seller).createAuction(await mockNFT.getAddress(), 123, SAMPLE_AUCTION_TYPE, 34, eth("1"))
+        await mockNFT.mintId(seller.address, 34)
+        const auctions = await (await ethers.getContractFactory("Auctions")).deploy(sequencer.address, sequencer.address, sequencer.address, await sa.getAddress());
+        mockNFT.connect(seller).setApprovalForAll(await auctions.getAddress(), true)
+        auctions.connect(seller).createAuction(await mockNFT.getAddress(), 123, SAMPLE_AUCTION_TYPE, 34, eth("1"))
         expect(await sa.balanceOf(buyer.address)).to.equal(eth(0));
         await sa.connect(buyer).deposit(buyer.address, {value: eth("0.5")})
         expect(await sa.balanceOf(buyer.address)).to.equal(eth(0.5));
@@ -90,7 +91,7 @@ describe("SealedArtMarket", function () {
             value: eth("1.0"),
         });
 
-        const auctionId = await sa.calculateAuctionHash(seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1"))
+        const auctionId = await auctions.calculateAuctionHash(seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1"))
         const types = {
             Bid: [
                 { name: "auctionId", type: "bytes32" },
@@ -101,7 +102,7 @@ describe("SealedArtMarket", function () {
             auctionId: auctionId,
             maxAmount: eth("2")
         };
-        const bidSig = await sign(buyer, types, value)
+        const bidSig = await sign(buyer, types, value, await auctions.getAddress())
         const seqVal = {
             auctionId: auctionId,
             amount: eth("1"),
@@ -113,7 +114,7 @@ describe("SealedArtMarket", function () {
                 { name: "amount", type: "uint256" },
                 { name: "winner", type: "address" },
             ],
-        }, seqVal)
+        }, seqVal, await auctions.getAddress())
         // Test that one salt being already revealed doesnt cause tx to revert
         const hiddenFunding2 = await fundingFactory.computeSealedFundingAddress(salt2, buyer.address)
         await buyer.sendTransaction({
@@ -122,7 +123,7 @@ describe("SealedArtMarket", function () {
         });
         await fundingFactory.deploySealedFunding(salt, buyer.address)
         await fundingFactory.deploySealedFunding(salt2, buyer.address)
-        await sa.settleAuctionWithSealedBids([salt2], seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1"), {
+        await auctions.settleAuctionWithSealedBids([salt2], seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1"), {
             ...bidSig, ...value,
         }, { ...seqSig, ...seqVal })
     })
