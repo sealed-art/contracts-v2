@@ -139,13 +139,15 @@ describe("SealedArtMarket", function () {
             value: eth("4"),
         });
         const manifoldContract = new ethers.Contract("0x29a30ee15ce1c299294a257dd4cd8bd4d5d9b5de", [
-            "function registerExtension(address, string) external"
-        ], artist)
+            "function registerExtension(address, string) external",
+            "function transferOwnership(address) external",
+        ], seller)
+        await manifoldContract.connect(artist).transferOwnership(seller.address)
         await manifoldContract.registerExtension(await auctions.getAddress(), "uri://")
         const uri = "URI"
         const mintHash = ethers.keccak256(new ethers.AbiCoder().encode(["address", "string"], [await manifoldContract.getAddress(), uri]))
-        const sellerSig = await sign(sequencer, { // THIS SHOULD BE ARTIST!!!
-            MintOffer: [
+        const sellerSig = await sign(seller, {
+            SellOffer: [
                 { name: "mintHash", type: "bytes32" },
                 { name: "amount", type: "uint256" },
                 { name: "deadline", type: "uint256" },
@@ -169,7 +171,7 @@ describe("SealedArtMarket", function () {
             nonce: 1
         }, sellerSig,
             8, {
-            seller: artist.address,
+            seller: seller.address,
             nftContract: await manifoldContract.getAddress(),
             uri
         })
