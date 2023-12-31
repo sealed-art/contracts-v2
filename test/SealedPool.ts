@@ -142,7 +142,7 @@ describe("SealedArtMarket", function () {
             "function registerExtension(address, string) external",
             "function transferOwnership(address) external",
         ], seller)
-        await manifoldContract.connect(artist).transferOwnership(seller.address)
+        await (manifoldContract.connect(artist) as any).transferOwnership(seller.address)
         await manifoldContract.registerExtension(await auctions.getAddress(), "uri://")
         const uri = "URI"
         const mintHash = ethers.keccak256(new ethers.AbiCoder().encode(["address", "string"], [await manifoldContract.getAddress(), uri]))
