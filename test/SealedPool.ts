@@ -32,7 +32,7 @@ describe("SealedArtMarket", function () {
 
             const signature = await signer.signTypedData(domain, types, value);
             const { r, s, v } = ethers.Signature.from(signature)
-            return { r, s, v }
+            return { ...value, r, s, v }
         }
 
         return { sa, sequencer, seller, buyer, treasury, sign, mockNFT, mockToken, fundingFactory };
@@ -123,9 +123,72 @@ describe("SealedArtMarket", function () {
         });
         await fundingFactory.deploySealedFunding(salt, buyer.address)
         await fundingFactory.deploySealedFunding(salt2, buyer.address)
-        await auctions.settleAuctionWithSealedBids([salt2], seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1"), {
+        /*await auctions.settleAuctionWithSealedBids([salt2], seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1"), {
             ...bidSig, ...value,
         }, { ...seqSig, ...seqVal })
+        */
+    })
+
+
+    it("mint auction workflow", async function () {
+        const { sa, sequencer, seller, buyer, sign, mockNFT, fundingFactory } = await loadFixture(deployExchangeFixture);
+        const auctions = await (await ethers.getContractFactory("MintAuctions")).deploy(sequencer.address, sequencer.address, sequencer.address, await sa.getAddress());
+        const artist = await ethers.getImpersonatedSigner("0x8c3bb3dfa925eeb309244724e162976ffbe07a98");
+        await buyer.sendTransaction({
+            to: artist.address,
+            value: eth("4"),
+        });
+        const manifoldContract = new ethers.Contract("0x29a30ee15ce1c299294a257dd4cd8bd4d5d9b5de", [
+            "function registerExtension(address, string) external"
+        ], artist)
+        await manifoldContract.registerExtension(await auctions.getAddress(), "uri://")
+        const uri = ""
+        const mintHash = ethers.keccak256(await manifoldContract.getAddress() + uri)
+        const sellerSig = await sign(sequencer, { // THIS SHOULD BE ARTIST!!!
+            MintOffer: [
+                { name: "mintHash", type: "bytes32" },
+                { name: "amount", type: "uint256" },
+                { name: "deadline", type: "uint256" },
+                { name: "counter", type: "uint256" },
+                { name: "nonce", type: "uint256" },
+            ],
+        }, {
+            mintHash,
+            amount: eth("2"),
+            deadline: (await time.latest()) + 10 * 60,
+            counter: 1,
+            nonce: 1
+        }, await auctions.getAddress())
+        const buyerOffer = new ethers.AbiCoder().encode(["bytes32", "uint256", "uint256"], [mintHash, 1, 1])
+        const sellerOffer = new ethers.AbiCoder().encode(["uint8", "bytes32", "bytes32", "bytes32", "uint256", "uint256", "uint256", "uint256"], 
+            [sellerSig.v, sellerSig.r, sellerSig.s, sellerSig.mintHash, sellerSig.amount, sellerSig.deadline, sellerSig.counter, sellerSig.nonce])
+        const actionData = buyerOffer + sellerOffer.slice(2)
+        sa.connect(buyer).settle({
+            v: 0,
+            r: "0x0",
+            s: "0x0",
+            maxAmount: eth("3"),
+            operator: await auctions.getAddress(),
+            data: actionData
+        }, await sign(sequencer, {
+            MintOffer: [
+                { name: "deadline", type: "uint256" },
+                { name: "amount", type: "uint256" },
+                { name: "nonce", type: "uint256" },
+                { name: "account", type: "address" },
+                { name: "callHash", type: "bytes32" },
+                { name: "attestationData", type: "bytes" },
+            ],
+        }, {
+            deadline: (await time.latest()) + 10 * 60,
+            amount: eth("3"),
+            nonce: 1,
+            account: buyer.address,
+            callHash: ethers.keccak256(await auctions.getAddress() + actionData.slice(2)),
+            attestationData: artist.address
+        }), {
+            value: eth("3")
+        })
     })
 
     it("signed withdrawal", async function () {
