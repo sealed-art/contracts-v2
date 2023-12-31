@@ -142,8 +142,8 @@ describe("SealedArtMarket", function () {
             "function registerExtension(address, string) external"
         ], artist)
         await manifoldContract.registerExtension(await auctions.getAddress(), "uri://")
-        const uri = ""
-        const mintHash = ethers.keccak256(await manifoldContract.getAddress() + uri)
+        const uri = "URI"
+        const mintHash = ethers.keccak256(new ethers.AbiCoder().encode(["address", "string"], [await manifoldContract.getAddress(), uri]))
         const sellerSig = await sign(sequencer, { // THIS SHOULD BE ARTIST!!!
             MintOffer: [
                 { name: "mintHash", type: "bytes32" },
@@ -163,15 +163,40 @@ describe("SealedArtMarket", function () {
         const sellerOffer = new ethers.AbiCoder().encode(["uint8", "bytes32", "bytes32", "bytes32", "uint256", "uint256", "uint256", "uint256"], 
             [sellerSig.v, sellerSig.r, sellerSig.s, sellerSig.mintHash, sellerSig.amount, sellerSig.deadline, sellerSig.counter, sellerSig.nonce])
         const actionData = buyerOffer + sellerOffer.slice(2)
-        sa.connect(buyer).settle({
+        console.log("selector", auctions.interface.getFunction("ab").selector, buyer.address)
+        const encodedURI = new ethers.AbiCoder().encode(["string"], [uri])
+        console.log("uri string", encodedURI)
+        //console.log("settle", sequencer.address, actionData, new ethers.AbiCoder().encode(["address"], [artist.address]))
+        const attestationData = new ethers.AbiCoder().encode(["address", "address"], [artist.address, await manifoldContract.getAddress()])
+        const allEncodedData = new ethers.AbiCoder().encode(["bytes", "bytes"], [actionData, attestationData])
+        const encodedCall = await auctions.ab.populateTransaction(buyer.address, buyer.address, 1, 5, 6, 7, {
+            mintHash,
+            counter: 1,
+            nonce: 1
+        }, sellerSig,
+            8, {
+            seller: artist.address,
+            nftContract: await manifoldContract.getAddress(),
+            uri
+        })
+        const finalURIEncoding = new ethers.AbiCoder().encode(["uint256"], [allEncodedData.length/2 - 1]).slice(2) + encodedURI.slice(2)
+        const finalAttestationData = attestationData + finalURIEncoding
+        const encodedSequencerStamp = new ethers.AbiCoder().encode([{"name":"sequencerStamp","type":"tuple","baseType":"tuple","components":[{"name":"seller","type":"address","baseType":"address","components":null,"arrayLength":null,"arrayChildren":null},{"name":"nftContract","type":"address","baseType":"address","components":null,"arrayLength":null,"arrayChildren":null},{"name":"uri","type":"string","baseType":"string","components":null,"arrayLength":null,"arrayChildren":null}],"arrayLength":null,"arrayChildren":null}],
+        [{
+            seller: artist.address, 
+            nftContract: await manifoldContract.getAddress(),
+            uri:"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }])
+        console.log("enc", encodedCall.data, allEncodedData+finalURIEncoding, encodedSequencerStamp)
+        await sa.connect(buyer).settle({
             v: 0,
-            r: "0x0",
-            s: "0x0",
+            r: sellerSig.r, //random values
+            s: sellerSig.r,
             maxAmount: eth("3"),
             operator: await auctions.getAddress(),
             data: actionData
         }, await sign(sequencer, {
-            MintOffer: [
+            ActionAttestation: [
                 { name: "deadline", type: "uint256" },
                 { name: "amount", type: "uint256" },
                 { name: "nonce", type: "uint256" },
@@ -184,9 +209,9 @@ describe("SealedArtMarket", function () {
             amount: eth("3"),
             nonce: 1,
             account: buyer.address,
-            callHash: ethers.keccak256(await auctions.getAddress() + actionData.slice(2)),
-            attestationData: artist.address
-        }), {
+            callHash: ethers.keccak256(new ethers.AbiCoder().encode(["address", "bytes"], [await auctions.getAddress(), actionData])),
+            attestationData: "0x"+encodedCall.data.slice(1162)//"0x00000000000000000000000000000000000000000000000000000000000002600000000000000000000000008c3bb3dfa925eeb309244724e162976ffbe07a9800000000000000000000000029a30ee15ce1c299294a257dd4cd8bd4d5d9b5de000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000035552490000000000000000000000000000000000000000000000000000000000"//finalAttestationData
+        }), auctions.interface.getFunction("ab").selector, {
             value: eth("3")
         })
     })

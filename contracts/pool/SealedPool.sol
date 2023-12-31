@@ -191,7 +191,8 @@ contract SealedPool is EIP712, Ownable {
 
     function settle(
         Action calldata action,
-        ActionAttestation calldata actionAttestation
+        ActionAttestation calldata actionAttestation,
+        bytes4 sig
     ) public payable {
         uint sequencerRank = sequencers[
             _verifyActionAttestation(actionAttestation)
@@ -212,10 +213,10 @@ contract SealedPool is EIP712, Ownable {
             emit Transfer(actionAttestation.account, address(0), actionAttestation.amount);
         }
         // Replay protection for users is left to the called contract, since in some cases (eg auctionHash) its not needed
-        (bool success,) = action.operator.call{
+        (bool success, bytes memory data) = action.operator.call{
             value: actionAttestation.amount
         }(
-            abi.encode(
+            abi.encodeWithSelector(sig,
                 msg.sender,
                 actionAttestation.account,
                 sequencerRank,
@@ -223,9 +224,17 @@ contract SealedPool is EIP712, Ownable {
                 actionAttestation.attestationData
             )
         );
+        if(!success) {
+            assembly{
+                let revertStringLength := mload(data)
+                let revertStringPtr := add(data, 0x20)
+                revert(revertStringPtr, revertStringLength)
+            }
+        }
         require(success, "failed");
     }
 
+/*
     function settleWithSealedBids(
         bytes32[] calldata salts,
         Action calldata action,
@@ -234,7 +243,7 @@ contract SealedPool is EIP712, Ownable {
         _revealBids(salts, actionAttestation.account);
         settle(action, actionAttestation);
     }
-
+*/
     function nonceState(uint256 nonce) public view returns (bool) {
         return usedNonces.get(nonce);
     }

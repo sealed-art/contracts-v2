@@ -74,7 +74,7 @@ abstract contract EIP712 is EIP712Base {
                 packet.nonce,
                 packet.account,
                 packet.callHash,
-                packet.attestationData
+                keccak256(packet.attestationData)
             ),
             packet.v,
             packet.r,

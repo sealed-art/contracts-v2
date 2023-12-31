@@ -40,5 +40,7 @@ abstract contract EIP712 is EIP712Base {
 
     struct MintOfferAttestation {
         address seller;
+        address nftContract;
+        string uri;
     } // No nonce cause nonce is already applied to buyer and seller packets
 }

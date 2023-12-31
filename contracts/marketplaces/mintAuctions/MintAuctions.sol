@@ -3,6 +3,7 @@ pragma solidity ^0.8.7;
 import "./EIP712.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
+import "hardhat/console.sol";
 
 interface UserCollection {
     function mintExtension(address to, string calldata uri) external returns (uint256);
@@ -125,17 +126,21 @@ contract MintAuctions is EIP712, Ownable {
 
     event MintSale(address buyer, address seller, uint256 amount, address nftContract, string uri);
 
-    fallback(bytes calldata data) external payable returns (bytes memory){
-       (address caller,
-        address buyer,
-        uint sequencerRank,
-        BuyerMintOffer memory buyerOffer,
-        MintOffer memory sellerOffer,
-        MintOfferAttestation memory sequencerStamp,
-        address nftContract,
-        string memory uri) = abi.decode(data, (address, address, uint, BuyerMintOffer, MintOffer, MintOfferAttestation, address, string));
+    function ab(address caller,
+    address buyer,
+    uint sequencerRank,
+    uint a,
+    uint b,
+    uint c,
+    BuyerMintOffer calldata buyerOffer,
+    MintOffer calldata sellerOffer,
+    uint d,
+    MintOfferAttestation calldata sequencerStamp
+    //address nftContract
+    ) external payable returns (bytes memory){
+        console.log("aaa");
 
-        require(msg.sender == address(sealedPool) && sequencerRank == 2);
+        require(msg.sender == address(sealedPool) && sequencerRank == 1, "!auth");
         if (caller != buyer) {
             require(buyerOffer.counter > accountCounter[buyer], "!counter");
         }
@@ -147,15 +152,15 @@ contract MintAuctions is EIP712, Ownable {
             );
         }
         _verifyMintOfferAlways(sellerOffer, sequencerStamp.seller);
-        bytes32 mintHash = keccak256(abi.encode(nftContract, uri));
+        bytes32 mintHash = keccak256(abi.encode(sequencerStamp.nftContract, sequencerStamp.uri));
         require(mintHash == sellerOffer.mintHash && mintHash == buyerOffer.mintHash, "!mintHash");
 
-        require(UserCollection(nftContract).owner() == sequencerStamp.seller, "!owner");
+        require(UserCollection(sequencerStamp.nftContract).owner() == sequencerStamp.seller, "!owner");
         require(msg.value >= sellerOffer.amount, "!amount");
 
-        UserCollection(nftContract).mintExtension(buyer, uri);
+        UserCollection(sequencerStamp.nftContract).mintExtension(buyer, sequencerStamp.uri);
         _distributePrimarySale(msg.value, payable(sequencerStamp.seller)); // skip royalties since its a primary sale
-        emit MintSale(buyer, sequencerStamp.seller, msg.value, nftContract, uri);
+        emit MintSale(buyer, sequencerStamp.seller, msg.value, sequencerStamp.nftContract, sequencerStamp.uri);
     }
 
     function orderNonces(address account, uint256 nonce) public view returns (bool) {
