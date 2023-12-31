@@ -163,13 +163,7 @@ describe("SealedArtMarket", function () {
         const sellerOffer = new ethers.AbiCoder().encode(["uint8", "bytes32", "bytes32", "bytes32", "uint256", "uint256", "uint256", "uint256"], 
             [sellerSig.v, sellerSig.r, sellerSig.s, sellerSig.mintHash, sellerSig.amount, sellerSig.deadline, sellerSig.counter, sellerSig.nonce])
         const actionData = buyerOffer + sellerOffer.slice(2)
-        console.log("selector", auctions.interface.getFunction("ab").selector, buyer.address)
-        const encodedURI = new ethers.AbiCoder().encode(["string"], [uri])
-        console.log("uri string", encodedURI)
-        //console.log("settle", sequencer.address, actionData, new ethers.AbiCoder().encode(["address"], [artist.address]))
-        const attestationData = new ethers.AbiCoder().encode(["address", "address"], [artist.address, await manifoldContract.getAddress()])
-        const allEncodedData = new ethers.AbiCoder().encode(["bytes", "bytes"], [actionData, attestationData])
-        const encodedCall = await auctions.ab.populateTransaction(buyer.address, buyer.address, 1, 5, 6, 7, {
+        const encodedCall = await auctions.settle.populateTransaction(buyer.address, buyer.address, 1, 5, 6, 7, {
             mintHash,
             counter: 1,
             nonce: 1
@@ -179,15 +173,6 @@ describe("SealedArtMarket", function () {
             nftContract: await manifoldContract.getAddress(),
             uri
         })
-        const finalURIEncoding = new ethers.AbiCoder().encode(["uint256"], [allEncodedData.length/2 - 1]).slice(2) + encodedURI.slice(2)
-        const finalAttestationData = attestationData + finalURIEncoding
-        const encodedSequencerStamp = new ethers.AbiCoder().encode([{"name":"sequencerStamp","type":"tuple","baseType":"tuple","components":[{"name":"seller","type":"address","baseType":"address","components":null,"arrayLength":null,"arrayChildren":null},{"name":"nftContract","type":"address","baseType":"address","components":null,"arrayLength":null,"arrayChildren":null},{"name":"uri","type":"string","baseType":"string","components":null,"arrayLength":null,"arrayChildren":null}],"arrayLength":null,"arrayChildren":null}],
-        [{
-            seller: artist.address, 
-            nftContract: await manifoldContract.getAddress(),
-            uri:"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-        }])
-        console.log("enc", encodedCall.data, allEncodedData+finalURIEncoding, encodedSequencerStamp)
         await sa.connect(buyer).settle({
             v: 0,
             r: sellerSig.r, //random values
@@ -211,7 +196,7 @@ describe("SealedArtMarket", function () {
             account: buyer.address,
             callHash: ethers.keccak256(new ethers.AbiCoder().encode(["address", "bytes"], [await auctions.getAddress(), actionData])),
             attestationData: "0x"+encodedCall.data.slice(1162)//"0x00000000000000000000000000000000000000000000000000000000000002600000000000000000000000008c3bb3dfa925eeb309244724e162976ffbe07a9800000000000000000000000029a30ee15ce1c299294a257dd4cd8bd4d5d9b5de000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000035552490000000000000000000000000000000000000000000000000000000000"//finalAttestationData
-        }), auctions.interface.getFunction("ab").selector, {
+        }), auctions.interface.getFunction("settle").selector, {
             value: eth("3")
         })
     })

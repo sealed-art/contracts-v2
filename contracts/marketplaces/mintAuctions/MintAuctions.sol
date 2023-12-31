@@ -126,20 +126,20 @@ contract MintAuctions is EIP712, Ownable {
 
     event MintSale(address buyer, address seller, uint256 amount, address nftContract, string uri);
 
-    function ab(address caller,
-    address buyer,
-    uint sequencerRank,
-    uint a,
-    uint b,
-    uint c,
-    BuyerMintOffer calldata buyerOffer,
-    MintOffer calldata sellerOffer,
-    uint d,
-    MintOfferAttestation calldata sequencerStamp
-    //address nftContract
-    ) external payable returns (bytes memory){
-        console.log("aaa");
-
+    // There are extra uints that come from how solidity encodes `bytes` in ABI, see https://docs.soliditylang.org/en/latest/abi-spec.html#use-of-dynamic-types
+    // I could remove the extra unnamed uint variables by using abi.encodePacked(), but then gas cost increases by 1095 gas
+    function settle(
+        address caller,
+        address buyer,
+        uint sequencerRank,
+        uint,
+        uint,
+        uint,
+        BuyerMintOffer calldata buyerOffer,
+        MintOffer calldata sellerOffer,
+        uint,
+        MintOfferAttestation calldata sequencerStamp
+    ) external payable {
         require(msg.sender == address(sealedPool) && sequencerRank == 1, "!auth");
         if (caller != buyer) {
             require(buyerOffer.counter > accountCounter[buyer], "!counter");
