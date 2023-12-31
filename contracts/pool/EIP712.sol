@@ -39,6 +39,7 @@ abstract contract EIP712 is EIP712Base {
         bytes32 s;
         uint256 maxAmount;
         address operator;
+        bytes4 sigHash;
         bytes data;
     }
 

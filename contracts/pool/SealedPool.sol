@@ -191,8 +191,7 @@ contract SealedPool is EIP712, Ownable {
 
     function settle(
         Action calldata action,
-        ActionAttestation calldata actionAttestation,
-        bytes4 sig
+        ActionAttestation calldata actionAttestation
     ) public payable {
         uint sequencerRank = sequencers[
             _verifyActionAttestation(actionAttestation)
@@ -216,7 +215,7 @@ contract SealedPool is EIP712, Ownable {
         (bool success, bytes memory data) = action.operator.call{
             value: actionAttestation.amount
         }(
-            abi.encodeWithSelector(sig,
+            abi.encodeWithSelector(action.sigHash,
                 msg.sender,
                 actionAttestation.account,
                 sequencerRank,
@@ -234,7 +233,7 @@ contract SealedPool is EIP712, Ownable {
         require(success, "failed");
     }
 
-/*
+
     function settleWithSealedBids(
         bytes32[] calldata salts,
         Action calldata action,
@@ -243,7 +242,7 @@ contract SealedPool is EIP712, Ownable {
         _revealBids(salts, actionAttestation.account);
         settle(action, actionAttestation);
     }
-*/
+
     function nonceState(uint256 nonce) public view returns (bool) {
         return usedNonces.get(nonce);
     }
