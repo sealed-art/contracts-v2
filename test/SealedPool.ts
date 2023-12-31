@@ -173,14 +173,19 @@ describe("SealedArtMarket", function () {
             nftContract: await manifoldContract.getAddress(),
             uri
         })
-        await sa.connect(buyer).settle({
-            v: 0,
-            r: sellerSig.r, //random values
-            s: sellerSig.r,
+        await sa.settle(await sign(buyer, {
+            Action: [
+                { name: "maxAmount", type: "uint256" },
+                { name: "operator", type: "address" },
+                { name: "sigHash", type: "bytes4" },
+                { name: "data", type: "bytes" },
+            ],
+        }, {
             maxAmount: eth("3"),
             operator: await auctions.getAddress(),
+            sigHash: auctions.interface.getFunction("settle").selector,
             data: actionData
-        }, await sign(sequencer, {
+        }), await sign(sequencer, {
             ActionAttestation: [
                 { name: "deadline", type: "uint256" },
                 { name: "amount", type: "uint256" },
@@ -196,7 +201,7 @@ describe("SealedArtMarket", function () {
             account: buyer.address,
             callHash: ethers.keccak256(new ethers.AbiCoder().encode(["address", "bytes"], [await auctions.getAddress(), actionData])),
             attestationData: "0x"+encodedCall.data.slice(1162)//"0x00000000000000000000000000000000000000000000000000000000000002600000000000000000000000008c3bb3dfa925eeb309244724e162976ffbe07a9800000000000000000000000029a30ee15ce1c299294a257dd4cd8bd4d5d9b5de000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000000035552490000000000000000000000000000000000000000000000000000000000"//finalAttestationData
-        }), auctions.interface.getFunction("settle").selector, {
+        }), {
             value: eth("3")
         })
     })

@@ -45,7 +45,8 @@ abstract contract EIP712 is EIP712Base {
 
     function _verifyAction(Action calldata packet) internal virtual returns (address) {
         address recoveredAddress = _verifySig(
-            abi.encode(keccak256("Action(address operator,bytes data,uint256 maxAmount)"), packet.maxAmount, packet.operator, packet.data),
+            abi.encode(keccak256("Action(uint256 maxAmount,address operator,bytes4 sigHash,bytes data)"),
+            packet.maxAmount, packet.operator, packet.sigHash, keccak256(packet.data)),
             packet.v,
             packet.r,
             packet.s
