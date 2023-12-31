@@ -12,8 +12,8 @@ Modifications introduced:
 
 ```shell
 npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
+npm t
+REPORT_GAS=true npm t
 npx hardhat node
 npx hardhat run scripts/deploy.ts
 

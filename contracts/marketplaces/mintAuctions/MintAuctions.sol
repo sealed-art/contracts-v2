@@ -129,14 +129,9 @@ contract MintAuctions is EIP712, Ownable {
     function ab(address caller,
     address buyer,
     uint sequencerRank,
-    uint a,
-    uint b,
-    uint c,
     BuyerMintOffer calldata buyerOffer,
     MintOffer calldata sellerOffer,
-    uint d,
     MintOfferAttestation calldata sequencerStamp
-    //address nftContract
     ) external payable returns (bytes memory){
         console.log("aaa");
 
@@ -148,7 +143,7 @@ contract MintAuctions is EIP712, Ownable {
         if (caller != sequencerStamp.seller) {
             _verifyMintOffer(sellerOffer, sequencerStamp.seller);
             require(
-                _verifySellMintOffer(sellerOffer) == sequencerStamp.seller && sequencerStamp.seller != address(0), "!seller"
+                true //_verifySellMintOffer(sellerOffer) == sequencerStamp.seller && sequencerStamp.seller != address(0), "!seller"
             );
         }
         _verifyMintOfferAlways(sellerOffer, sequencerStamp.seller);

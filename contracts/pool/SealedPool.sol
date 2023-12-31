@@ -216,12 +216,16 @@ contract SealedPool is EIP712, Ownable {
         (bool success, bytes memory data) = action.operator.call{
             value: actionAttestation.amount
         }(
-            abi.encodeWithSelector(sig,
-                msg.sender,
-                actionAttestation.account,
-                sequencerRank,
-                action.data,
-                actionAttestation.attestationData
+            abi.encodePacked(sig,
+                abi.encode(
+                    msg.sender,
+                    actionAttestation.account,
+                    sequencerRank
+                ),
+                abi.encodePacked(
+                    action.data,
+                    actionAttestation.attestationData
+                )
             )
         );
         if(!success) {
