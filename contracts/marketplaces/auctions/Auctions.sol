@@ -258,24 +258,24 @@ contract Auctions is EIP712, Ownable {
     event AuctionSettled(bytes32 auctionId);
 
     function settleAuction(
+        address caller,
+        address buyer,
+        uint sequencerRank,
+        uint,
+        uint,
+        uint,
         Bid calldata bid,
-        BidWinner calldata bidWinner,
-        address payable nftOwner,
-        address nftContract,
-        bytes32 auctionType,
-        uint256 nftId,
-        uint256 reserve
-    ) public payable {
-        bytes32 auctionId = calculateAuctionHash(nftOwner, nftContract, auctionType, nftId, reserve);
+        uint,
+        SequencerStamp calldata sequencerStamp
+    ) external payable {
+        require(msg.sender == address(sealedPool) && sequencerRank == 1, "!auth");
+        bytes32 auctionId = calculateAuctionHash(sequencerStamp.nftOwner, sequencerStamp.nftContract, sequencerStamp.auctionType, sequencerStamp.nftId, sequencerStamp.reserve);
         require(auctionState[auctionId] == AuctionState.CREATED, "bad auction state");
         auctionState[auctionId] = AuctionState.CLOSED;
-        require(bidWinner.auctionId == auctionId && bid.auctionId == auctionId, "!auctionId");
-        uint256 amount = bidWinner.amount;
-        require(amount <= bid.maxAmount && amount >= reserve && msg.value == amount, "!amount");
-        require(_verifyBid(bid) == bidWinner.winner, "!winner");
-        require(_verifyBidWinner(bidWinner) == settleSequencer, "!settleSequencer");
-        IERC721(nftContract).transferFrom(address(this), bidWinner.winner, nftId);
-        _distributeSale(nftContract, nftId, amount, nftOwner);
+        require(bid.auctionId == auctionId, "!auctionId");
+        require(msg.value >= sequencerStamp.reserve, "<reserve");
+        IERC721(sequencerStamp.nftContract).transferFrom(address(this), buyer, sequencerStamp.nftId);
+        _distributeSale(sequencerStamp.nftContract, sequencerStamp.nftId, msg.value, sequencerStamp.nftOwner);
         emit AuctionSettled(auctionId);
     }
 

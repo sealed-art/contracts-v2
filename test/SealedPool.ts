@@ -92,29 +92,6 @@ describe("SealedArtMarket", function () {
         });
 
         const auctionId = await auctions.calculateAuctionHash(seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1"))
-        const types = {
-            Bid: [
-                { name: "auctionId", type: "bytes32" },
-                { name: "maxAmount", type: "uint256" },
-            ],
-        };
-        const value = {
-            auctionId: auctionId,
-            maxAmount: eth("2")
-        };
-        const bidSig = await sign(buyer, types, value, await auctions.getAddress())
-        const seqVal = {
-            auctionId: auctionId,
-            amount: eth("1"),
-            winner: buyer.address,
-        }
-        const seqSig = await sign(sequencer, {
-            BidWinner: [
-                { name: "auctionId", type: "bytes32" },
-                { name: "amount", type: "uint256" },
-                { name: "winner", type: "address" },
-            ],
-        }, seqVal, await auctions.getAddress())
         // Test that one salt being already revealed doesnt cause tx to revert
         const hiddenFunding2 = await fundingFactory.computeSealedFundingAddress(salt2, buyer.address)
         await buyer.sendTransaction({
@@ -123,10 +100,36 @@ describe("SealedArtMarket", function () {
         });
         await fundingFactory.deploySealedFunding(salt, buyer.address)
         await fundingFactory.deploySealedFunding(salt2, buyer.address)
-        /*await auctions.settleAuctionWithSealedBids([salt2], seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1"), {
-            ...bidSig, ...value,
-        }, { ...seqSig, ...seqVal })
-        */
+        await sa.settleWithSealedBids([salt2], await sign(buyer, {
+            Action: [
+                { name: "maxAmount", type: "uint256" },
+                { name: "operator", type: "address" },
+                { name: "sigHash", type: "bytes4" },
+                { name: "data", type: "bytes" },
+            ],
+        }, {
+            maxAmount: eth("3"),
+            operator: await auctions.getAddress(),
+            sigHash: auctions.interface.getFunction("settleAuction").selector,
+            data: auctionId
+        }), await sign(sequencer, {
+            ActionAttestation: [
+                { name: "deadline", type: "uint256" },
+                { name: "amount", type: "uint256" },
+                { name: "nonce", type: "uint256" },
+                { name: "account", type: "address" },
+                { name: "callHash", type: "bytes32" },
+                { name: "attestationData", type: "bytes" },
+            ],
+        }, {
+            deadline: (await time.latest()) + 10 * 60,
+            amount: eth("1"),
+            nonce: 1,
+            account: buyer.address,
+            callHash: ethers.keccak256(new ethers.AbiCoder().encode(["address", "bytes"], [await auctions.getAddress(), auctionId])),
+            attestationData: new ethers.AbiCoder().encode(["address", "address", "bytes32", "uint256", "uint256"], 
+                [seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1")])
+        }))
     })
 
 
@@ -206,6 +209,10 @@ describe("SealedArtMarket", function () {
         }), {
             value: eth("3")
         })
+    })
+
+    it("backwards compatible settleOld auction", async function () {
+
     })
 
     it("signed withdrawal", async function () {
