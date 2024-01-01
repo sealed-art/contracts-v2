@@ -15,7 +15,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       forking: {
         url: "https://eth.llamarpc.com",
-        blockNumber: 17589468
+        blockNumber: 18909967
       }
     },
     fuji: {

@@ -57,21 +57,6 @@ describe("SealedArtMarket", function () {
             to: hiddenFunding.predictedAddress,
             value: ethers.parseEther("1.0")
         })).to.be.reverted
-
-        /*
-        const hf = (await ethers.getContractFactory("SealedFunding")).attach(hiddenFunding.predictedAddress) as any;
-        await mockNFT.mint(buyer.address, 1)
-        expect(await mockNFT.ownerOf(1)).to.equal(buyer.address)
-        await mockNFT.connect(buyer).transferFrom(buyer.address, hiddenFunding.predictedAddress, 1)
-        expect(await mockNFT.ownerOf(1)).to.equal(hiddenFunding.predictedAddress)
-        await hf.retrieve(await mockNFT.getAddress(), 1)
-        expect(await mockNFT.ownerOf(1)).to.equal(buyer.address)
-
-        await mockToken.mint(hiddenFunding.predictedAddress, 10)
-        expect(await mockToken.balanceOf(buyer.address)).to.eq(0)
-        await hf.retrieve(await mockToken.getAddress(), 10)
-        expect(await mockToken.balanceOf(buyer.address)).to.eq(10)
-        */
     });
 
     it("basic auction workflow", async function () {
@@ -130,6 +115,7 @@ describe("SealedArtMarket", function () {
             attestationData: new ethers.AbiCoder().encode(["address", "address", "bytes32", "uint256", "uint256"], 
                 [seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1")])
         }))
+        expect(await mockNFT.ownerOf(34)).to.eq(buyer.address)
     })
 
 
@@ -212,7 +198,41 @@ describe("SealedArtMarket", function () {
     })
 
     it("backwards compatible settleOld auction", async function () {
-
+        const { sa, sequencer, seller, buyer, sign, mockNFT, fundingFactory } = await loadFixture(deployExchangeFixture);
+        await mockNFT.mintId(seller.address, 34)
+        const oldSealed = new ethers.Contract("0x2cbe14b7f60fbe6a323cba7db56f2d916c137f3c", [
+            "function createAuction(address nftContract,uint256 auctionDuration,bytes32 auctionType,uint256 nftId,uint256 reserve) external",
+            "function calculateAuctionHash(address owner,address nftContract,bytes32 auctionType,uint256 nftId,uint256 reserve) public pure returns (bytes32)",
+            "function changeSequencer(address, address) external"
+        ], seller)
+        const oldOwner = await ethers.getImpersonatedSigner("0xE4FA009d01B2cd9c9B0F81fd3e45095EF0F1005C");
+        oldSealed.connect(oldOwner).changeSequencer(sequencer.address, sequencer.address)
+        mockNFT.connect(seller).setApprovalForAll(await oldSealed.getAddress(), true)
+        oldSealed.createAuction(await mockNFT.getAddress(), 123, SAMPLE_AUCTION_TYPE, 34, eth("1"))
+        const auctionId = await oldSealed.calculateAuctionHash(seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1"))
+        const bidSig = await sign(buyer, {
+            Bid: [
+                { name: "auctionId", type: "bytes32" },
+                { name: "maxAmount", type: "uint256" },
+            ],
+        }, {
+            auctionId: auctionId,
+            maxAmount: eth("2")
+        }, await oldSealed.getAddress())
+        const seqSig = await sign(sequencer, {
+            BidWinner: [
+                { name: "auctionId", type: "bytes32" },
+                { name: "amount", type: "uint256" },
+                { name: "winner", type: "address" },
+            ],
+        }, {
+            auctionId: auctionId,
+            amount: eth("1"),
+            winner: buyer.address,
+        }, await oldSealed.getAddress())
+        await sa.connect(buyer).deposit(buyer.address, {value: eth("2")})
+        await sa.settleOld([], [], seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1"), bidSig, seqSig)
+        expect(await mockNFT.ownerOf(34)).to.eq(buyer.address)
     })
 
     it("signed withdrawal", async function () {
