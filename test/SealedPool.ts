@@ -206,7 +206,7 @@ describe("SealedArtMarket", function () {
             "function changeSequencer(address, address) external"
         ], seller)
         const oldOwner = await ethers.getImpersonatedSigner("0xE4FA009d01B2cd9c9B0F81fd3e45095EF0F1005C");
-        oldSealed.connect(oldOwner).changeSequencer(sequencer.address, sequencer.address)
+        (oldSealed.connect(oldOwner) as any).changeSequencer(sequencer.address, sequencer.address)
         mockNFT.connect(seller).setApprovalForAll(await oldSealed.getAddress(), true)
         oldSealed.createAuction(await mockNFT.getAddress(), 123, SAMPLE_AUCTION_TYPE, 34, eth("1"))
         const auctionId = await oldSealed.calculateAuctionHash(seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1"))
@@ -233,6 +233,70 @@ describe("SealedArtMarket", function () {
         await sa.connect(buyer).deposit(buyer.address, {value: eth("2")})
         await sa.settleOld([], [], seller.address, await mockNFT.getAddress(), SAMPLE_AUCTION_TYPE, 34, eth("1"), bidSig, seqSig)
         expect(await mockNFT.ownerOf(34)).to.eq(buyer.address)
+    })
+
+    it("editions", async function () {
+        const { sequencer, seller, buyer, treasury, sign } = await loadFixture(deployExchangeFixture);
+        const editions = await (await ethers.getContractFactory("SealedEditions")).deploy(sequencer.address, treasury.address, eth(0.02));
+        const artist = await ethers.getImpersonatedSigner("0x334f95d8ffdb85a0297c6f7216e793d08ab45b48");
+        const manifoldContract = new ethers.Contract("0xE2000AddF46e0331C2806Adf24B052354a7EC218", [
+            "function registerExtension(address, string) external",
+            "function transferOwnership(address) external",
+        ], seller)
+        await (manifoldContract.connect(artist) as any).transferOwnership(seller.address)
+        await manifoldContract.registerExtension(await editions.getAddress(), "uri://")
+        {
+            const nftContract= await manifoldContract.getAddress(),
+            uri= "URI",
+            cost= eth("0.1"),
+            endDate= (await time.latest()) + 10 * 60,
+            maxToMint= 100,
+            deadline= (await time.latest()) + 10 * 60,
+            counter= 1,
+            nonce= 1;
+            const offer = await sign(seller, {
+                SellOffer:[
+                    { name: "nftContract", type: "address" },
+                    { name: "uri", type: "string" },
+                    { name: "cost", type: "uint256" },
+                    { name: "endDate", type: "uint256" },
+                    { name: "maxToMint", type: "uint256" },
+                    { name: "deadline", type: "uint256" },
+                    { name: "counter", type: "uint256" },
+                    { name: "nonce", type: "uint256" },
+                ]
+            }, {
+                nftContract,
+                uri,
+                cost,
+                endDate,
+                maxToMint,
+                deadline,
+                counter,
+                nonce,
+            }, await editions.getAddress())
+            const attestation = await sign(sequencer, {
+                MintOfferAttestation: [
+                    { name: "deadline", type: "uint256" },
+                    { name: "offerHash", type: "bytes32" },
+                ]
+            }, {
+                deadline: (await time.latest()) + 10 * 60,
+                offerHash: ethers.keccak256(new ethers.AbiCoder().encode(
+                    ["address", "address", "address", "string", "uint256", "uint256", "uint256", "uint256", "uint256", "uint256"], 
+                    [buyer.address, seller.address, nftContract, uri, cost, endDate,
+                        maxToMint,
+                        deadline,
+                        counter,
+                        nonce,])),
+            }, await editions.getAddress())
+            await editions.connect(buyer).mintNew(offer, attestation, 1, {
+                value: eth(0.1)
+            })
+            await editions.connect(buyer).mintNew(offer, attestation, 3, {
+                value: eth(0.3)
+            }) // it goes to mint()
+        }
     })
 
     it("signed withdrawal", async function () {

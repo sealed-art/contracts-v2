@@ -24,7 +24,7 @@ abstract contract EIP712Editions is EIP712Base {
                     "SellOffer(address nftContract,string uri,uint256 cost,uint256 endDate,uint256 maxToMint,uint256 deadline,uint256 counter,uint256 nonce)"
                 ),
                 packet.nftContract,
-                packet.uri,
+                keccak256(abi.encodePacked(packet.uri)),
                 packet.cost,
                 packet.endDate,
                 packet.maxToMint,
