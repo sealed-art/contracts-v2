@@ -255,7 +255,7 @@ contract Auctions is EIP712, Ownable {
         _transferETH(seller, amount - (totalRoyalty + feeAmount)); // totalRoyalty+feeAmount <= amount*0.43
     }
 
-    event AuctionSettled(bytes32 auctionId);
+    event AuctionSettled(bytes32 auctionId, address nftContract, uint tokenId, address seller, address buyer, uint price);
 
     function settleAuction(
         address caller,
@@ -276,7 +276,7 @@ contract Auctions is EIP712, Ownable {
         require(msg.value >= sequencerStamp.reserve, "<reserve");
         IERC721(sequencerStamp.nftContract).transferFrom(address(this), buyer, sequencerStamp.nftId);
         _distributeSale(sequencerStamp.nftContract, sequencerStamp.nftId, msg.value, sequencerStamp.nftOwner);
-        emit AuctionSettled(auctionId);
+        emit AuctionSettled(auctionId, sequencerStamp.nftContract, sequencerStamp.nftId, sequencerStamp.nftOwner, buyer, msg.value);
     }
 
     event CounterIncreased(address account, uint256 newCounter);
@@ -301,7 +301,7 @@ contract Auctions is EIP712, Ownable {
         require(offer.counter > accountCounter[creator], "!counter");
     }
 
-    event OrdersMatched(bytes32 auctionId, address buyer, address sender, uint256 buyerNonce, uint256 sellerNonce);
+    event OrdersMatched(bytes32 auctionId, address nftContract, uint tokenId, address seller, address buyer, uint price, uint256 sellerNonce, uint256 buyerNonce);
 
     function matchOrders(
         Offer calldata sellerOffer,
@@ -351,7 +351,7 @@ contract Auctions is EIP712, Ownable {
         _distributeSale(
             nftContract, nftId, sequencerStamp.amount, payable(sequencerStamp.seller)
         );
-        emit OrdersMatched(auctionId, sequencerStamp.buyer, msg.sender, buyerOffer.nonce, sellerOffer.nonce);
+        emit OrdersMatched(auctionId, nftContract, nftId, sequencerStamp.seller, sequencerStamp.buyer, sequencerStamp.amount, sellerOffer.nonce, buyerOffer.nonce);
     }
 
     function orderNonces(address account, uint256 nonce) public view returns (bool) {
