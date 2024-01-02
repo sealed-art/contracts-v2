@@ -101,16 +101,16 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         nonceTonftId[seller][offer.nonce] = (nftIds[0] << 1) | 1; // assumes nftId will always be < 2**254
         bytes32 editionHash = calculateEditionHash(offer.nftContract, nftIds[0], offer.cost, offer.endDate, offer.maxToMint, seller);
         editionsMinted[editionHash] += amount;
-        require(editionsMinted[editionHash] < offer.maxToMint, ">maxToMint");
+        require(editionsMinted[editionHash] <= offer.maxToMint, ">maxToMint");
         _distributePrimarySale(offer.cost, amount, payable(seller));
         emit Mint(offer.nftContract, nftIds[0], amount, offer.cost, seller, msg.sender);
     }
 
     event MintStopped(bytes32 editionHash);
 
-    function stopMint(address nftContract, uint nftId, uint cost, uint endDate, uint maxToMint, address seller) external {
-        require(msg.sender == seller || msg.sender == UserCollection(nftContract).owner(), "!auth");
-        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, endDate, maxToMint, seller);
+    function stopMint(address nftContract, uint nftId, uint cost, uint endDate, uint maxToMint) external {
+        require(msg.sender == UserCollection(nftContract).owner(), "!auth");
+        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, endDate, maxToMint, msg.sender);
         editionsMinted[editionHash] = type(uint256).max;
         emit MintStopped(editionHash);
     }

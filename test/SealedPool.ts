@@ -242,6 +242,7 @@ describe("SealedArtMarket", function () {
         const manifoldContract = new ethers.Contract("0xE2000AddF46e0331C2806Adf24B052354a7EC218", [
             "function registerExtension(address, string) external",
             "function transferOwnership(address) external",
+            "function balanceOf(address, uint) external view returns (uint)"
         ], seller)
         await (manifoldContract.connect(artist) as any).transferOwnership(seller.address)
         await manifoldContract.registerExtension(await editions.getAddress(), "uri://")
@@ -290,12 +291,31 @@ describe("SealedArtMarket", function () {
                         counter,
                         nonce,])),
             }, await editions.getAddress())
-            await editions.connect(buyer).mintNew(offer, attestation, 1, {
+            const nftId = 4n
+            await expect(editions.connect(buyer).mint(1, nftContract, nftId, cost, endDate, maxToMint, seller.address, {
+                value: eth(0.1)
+            })).to.be.revertedWith(">maxToMint")
+            expect(await manifoldContract.balanceOf(buyer.address, nftId)).to.eq(0)
+            const mintTx = await editions.connect(buyer).mintNew(offer, attestation, 1, {
                 value: eth(0.1)
             })
+            expect(((await mintTx.wait())!.logs!.find((l:any)=>l.fragment?.name==="Mint")! as any).args[1]).to.eq(nftId)
+            expect(await manifoldContract.balanceOf(buyer.address, nftId)).to.eq(1)
+            await editions.connect(buyer).mint(1, nftContract, nftId, cost, endDate, maxToMint, seller.address, {
+                value: eth(0.1)
+            })
+            expect(await manifoldContract.balanceOf(buyer.address, nftId)).to.eq(2)
             await editions.connect(buyer).mintNew(offer, attestation, 3, {
                 value: eth(0.3)
-            }) // it goes to mint()
+            }) // goes to mint()
+            expect(await manifoldContract.balanceOf(buyer.address, nftId)).to.eq(5)
+            await expect(editions.connect(buyer).mint(95, nftContract, nftId, cost, endDate, maxToMint, seller.address, {value: eth(9.4)}))
+                .to.be.revertedWith("msg.value")
+            await expect(editions.connect(buyer).mint(96, nftContract, nftId, cost, endDate, maxToMint, seller.address, {value: eth(9.5)}))
+                .to.be.revertedWith(">maxToMint")
+            await editions.connect(seller).stopMint(nftContract, nftId, cost, endDate, maxToMint)
+            await expect(editions.connect(buyer).mint(1, nftContract, nftId, cost, endDate, maxToMint, seller.address, {value: eth(0.1)}))
+                .to.be.revertedWithPanic("0x11") // overflow
         }
     })
 
