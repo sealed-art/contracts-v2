@@ -17,6 +17,10 @@ REPORT_GAS=true npx hardhat test
 npx hardhat node
 npx hardhat run scripts/deploy.ts
 
+export $(echo $(cat .env | sed 's/#.*//g'| xargs) | envsubst) && npx hardhat deploy --network mainnet
+export $(echo $(cat .env | sed 's/#.*//g'| xargs) | envsubst) && npx hardhat etherscan-verify --network mainnet
+
+
 PRIVATEKEY=xxx npx hardhat run scripts/deploy.ts --network fuji
 ETHERSCAN_API_KEY=xxx npx hardhat verify --network fuji contract_address params
 ```

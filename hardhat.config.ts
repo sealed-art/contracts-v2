@@ -1,5 +1,6 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import 'hardhat-deploy';
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -20,14 +21,17 @@ const config: HardhatUserConfig = {
     },
     fuji: {
       url: 'https://rpc.ankr.com/avalanche_fuji',
-      //accounts: [process.env.PRIVATEKEY!],
+      accounts: [process.env.PRIVATEKEY!],
       gasMultiplier: 1.5,
     },
     mainnet: {
-      url: "https://eth.llamarpc.com",
-      //accounts: [process.env.PRIVATEKEY!],
+      url: "https://rpc.ankr.com/eth",
+      accounts: [process.env.PRIVATEKEY!],
       gasMultiplier: 1.1,
     },
+  },
+  namedAccounts: {
+    deployer: 0,
   },
   etherscan: {
     apiKey: {
