@@ -124,7 +124,7 @@ contract MintAuctions is EIP712, Ownable {
         usedOrderNonces[msg.sender].set(offer.nonce);
     }
 
-    event MintSale(address buyer, address seller, uint256 amount, address nftContract, string uri);
+    event MintSale(address nftContract, uint tokenId, address buyer, address seller, uint256 price);
 
     // There are extra uints that come from how solidity encodes `bytes` in ABI, see https://docs.soliditylang.org/en/latest/abi-spec.html#use-of-dynamic-types
     // I could remove the extra unnamed uint variables by using abi.encodePacked(), but then gas cost increases by 1095 gas
@@ -158,9 +158,9 @@ contract MintAuctions is EIP712, Ownable {
         require(UserCollection(sequencerStamp.nftContract).owner() == sequencerStamp.seller, "!owner");
         require(msg.value >= sellerOffer.amount, "!amount");
 
-        UserCollection(sequencerStamp.nftContract).mintExtension(buyer, sequencerStamp.uri);
+        uint nftId = UserCollection(sequencerStamp.nftContract).mintExtension(buyer, sequencerStamp.uri);
         _distributePrimarySale(msg.value, payable(sequencerStamp.seller)); // skip royalties since its a primary sale
-        emit MintSale(buyer, sequencerStamp.seller, msg.value, sequencerStamp.nftContract, sequencerStamp.uri);
+        emit MintSale(sequencerStamp.nftContract, nftId, buyer, sequencerStamp.seller, msg.value);
     }
 
     function orderNonces(address account, uint256 nonce) public view returns (bool) {
