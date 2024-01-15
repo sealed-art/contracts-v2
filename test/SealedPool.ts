@@ -237,7 +237,7 @@ describe("SealedArtMarket", function () {
 
     it("editions", async function () {
         const { sequencer, seller, buyer, treasury, sign } = await loadFixture(deployExchangeFixture);
-        const editions = await (await ethers.getContractFactory("SealedEditions")).deploy(sequencer.address, treasury.address, eth(0.02));
+        const editions = await (await ethers.getContractFactory("SealedEditions")).deploy(sequencer.address);
         const artist = await ethers.getImpersonatedSigner("0x334f95d8ffdb85a0297c6f7216e793d08ab45b48");
         const manifoldContract = new ethers.Contract("0xE2000AddF46e0331C2806Adf24B052354a7EC218", [
             "function registerExtension(address, string) external",

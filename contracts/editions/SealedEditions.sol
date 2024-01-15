@@ -13,26 +13,25 @@ interface UserCollection {
 
 contract SealedEditions is EIP712Editions, Ownable, Nonces {
     mapping(bytes32 => uint256) public editionsMinted;
-    mapping(address => mapping(uint256 => uint256)) public nonceTonftId;
+    mapping(address => mapping(uint256 => uint256)) public nonceToNftId;
     address public sequencer; // Invariant: always different than address(0)
-    address payable public treasury;
-    uint256 internal constant MAX_PROTOCOL_FEE = 0.1e18; // 10%
-    uint256 public feeMultiplier;
+    uint256 internal constant MIN_WITHOUT_FEE = 0.9e18; // 90%
+    uint256 public feeMultiplier = 0.98e18; // Invariant: between 90% and 100%
 
-    constructor(address _sequencer, address payable _treasury, uint _feeMultiplier) {
+    constructor(address _sequencer) {
         require(_sequencer != address(0), "0x0 sequencer not allowed");
         sequencer = _sequencer;
-        treasury = _treasury;
-        require(feeMultiplier < MAX_PROTOCOL_FEE, ">MAX_PROTOCOL_FEE");
+    }
+
+    function changeAdminConfig(address _sequencer, uint _feeMultiplier) external onlyOwner {
+        require(_sequencer != address(0), "0x0 sequencer not allowed");
+        sequencer = _sequencer;
+        require(_feeMultiplier >= MIN_WITHOUT_FEE && _feeMultiplier <= 1e18, ">MAX_PROTOCOL_FEE");
         feeMultiplier = _feeMultiplier;
     }
 
-    function changeAdminConfig(address _sequencer, address payable _treasury, uint _feeMultiplier) external onlyOwner {
-        require(_sequencer != address(0), "0x0 sequencer not allowed");
-        sequencer = _sequencer;
-        treasury = _treasury;
-        require(_feeMultiplier < MAX_PROTOCOL_FEE, ">MAX_PROTOCOL_FEE");
-        feeMultiplier = _feeMultiplier;
+    function withdrawFees(address payable receiver) external onlyOwner(){
+        _transferETH(receiver, address(this).balance);
     }
 
     function _transferETH(address payable receiver, uint256 amount) internal {
@@ -44,9 +43,8 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         if(cost > 0){
             uint total = amount * cost;
             require(msg.value == total, "msg.value");
-            uint256 feeAmount = (total * feeMultiplier) / 1e18;
-            _transferETH(treasury, feeAmount);
-            _transferETH(seller, total - feeAmount);
+            uint256 amountWithoutFee = (total * feeMultiplier) / 1e18;
+            _transferETH(seller, amountWithoutFee);
         }
     }
 
@@ -57,7 +55,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
     event OfferCancelled(address account, uint256 nonce);
 
     function cancelOffer(uint256 nonce) external {
-        nonceTonftId[msg.sender][nonce] = 1;
+        nonceToNftId[msg.sender][nonce] = 1;
         emit OfferCancelled(msg.sender, nonce);
     }
 
@@ -67,13 +65,13 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
     function mintNew(MintOffer calldata offer, MintOfferAttestation calldata attestation, uint amount) external payable {
         require(amount > 0);
         address seller = _verifySellMintOffer(offer);
-        uint nftId = nonceTonftId[seller][offer.nonce];
+        uint nftId = nonceToNftId[seller][offer.nonce];
         if(nftId != 0){
             mint(amount, offer.nftContract, nftId >> 1, offer.cost, offer.endDate, offer.maxToMint, seller);
             return;
         }
-        nonceTonftId[seller][offer.nonce] = 1; // temporary value to avoid reentrancy
-        require(seller == UserCollection(offer.nftContract).owner(), "!auth");
+        nonceToNftId[seller][offer.nonce] = 1; // temporary value to avoid reentrancy
+        require(seller != address(0) && seller == UserCollection(offer.nftContract).owner(), "!auth");
         require(offer.counter > accountCounter[seller], "<counter");
         require(attestation.offerHash == keccak256(abi.encode(
             msg.sender,
@@ -88,7 +86,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
             offer.nonce
         )), "!offerHash");
         require(attestation.deadline > block.timestamp && offer.deadline > block.timestamp && offer.endDate > block.timestamp, ">deadline");
-        require(_verifyAttestation(attestation) == sequencer, "!sequencer");
+        require(_verifyAttestation(attestation) == sequencer, "!sequencer"); // No need to check against address(0) because sequencer will never be 0x0
 
         address[] memory to = new address[](1);
         to[0] = msg.sender;
@@ -98,7 +96,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         uris[0] = offer.uri;
         uint[] memory nftIds = UserCollection(offer.nftContract).mintExtensionNew(to, amounts, uris);
 
-        nonceTonftId[seller][offer.nonce] = (nftIds[0] << 1) | 1; // assumes nftId will always be < 2**254
+        nonceToNftId[seller][offer.nonce] = (nftIds[0] << 1) | 1; // assumes nftId will always be < 2**254
         bytes32 editionHash = calculateEditionHash(offer.nftContract, nftIds[0], offer.cost, offer.endDate, offer.maxToMint, seller);
         editionsMinted[editionHash] += amount;
         require(editionsMinted[editionHash] <= offer.maxToMint, ">maxToMint");
