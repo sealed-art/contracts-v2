@@ -94,7 +94,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         amounts[0] = amount;
         string[] memory uris = new string[](1);
         uris[0] = offer.uri;
-        uint[] memory nftIds = UserCollection(offer.nftContract).mintExtensionNew(to, amounts, uris);
+        uint[] memory nftIds = UserCollection(offer.nftContract).mintExtensionNew(to, amounts, uris); // if its an ipfs uri, separating prefix doesnt improve gas
 
         nonceToNftId[seller][offer.nonce] = (nftIds[0] << 1) | 1; // assumes nftId will always be < 2**254
         bytes32 editionHash = calculateEditionHash(offer.nftContract, nftIds[0], offer.cost, offer.endDate, offer.maxToMint, seller);
@@ -106,11 +106,21 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
 
     event MintStopped(bytes32 editionHash);
 
-    function stopMint(address nftContract, uint nftId, uint cost, uint endDate, uint maxToMint) external {
+    function stopMint(address nftContract, uint nftId, uint cost, uint endDate, uint maxToMint) public {
         require(msg.sender == UserCollection(nftContract).owner(), "!auth");
         bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, endDate, maxToMint, msg.sender);
         editionsMinted[editionHash] = type(uint256).max;
         emit MintStopped(editionHash);
+    }
+
+    event NewMint(address nftContract, uint nftId, uint cost, uint endDate, uint maxToMint, address seller);
+    function editMint(address nftContract, uint nftId, uint cost, uint endDate, uint maxToMint,
+            uint newCost, uint newEndDate, uint newMaxToMint) external {
+        bytes32 oldEditionHash = calculateEditionHash(nftContract, nftId, cost, endDate, maxToMint, msg.sender);
+        bytes32 newEditionHash = calculateEditionHash(nftContract, nftId, newCost, newEndDate, newMaxToMint, msg.sender);
+        editionsMinted[newEditionHash] = editionsMinted[oldEditionHash];
+        stopMint(nftContract, nftId, cost, endDate, maxToMint);
+        emit NewMint(nftContract, nftId, newCost, newEndDate, newMaxToMint, msg.sender);
     }
 
     function mint(uint amount, address nftContract, uint nftId, uint cost, uint endDate, uint maxToMint, address seller) payable public {
