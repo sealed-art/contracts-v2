@@ -121,18 +121,18 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
     }
 
     function mintNewWithMerkle(MintOffer calldata offer, MintOfferAttestation calldata attestation, uint amount,
-            bytes32[] calldata merkleProof, address mintFor, uint wlStartDate, uint wlCost, uint wlMaxMint) external payable {
-        require(wlStartDate < block.timestamp, "startDate");
+            bytes32[] calldata merkleProof, MerkleLeaf calldata merkleLeaf) external payable {
+        require(merkleLeaf.startDate < block.timestamp, "startDate");
         address seller = _verifySellMintOffer(offer);
         uint nftId = nonceToNftId[seller][offer.nonce];
         if(nftId != 0){
             mintWithMerkle(amount, offer.nftContract, nftId >> 1, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, seller, offer.merkleRoot, 
-                merkleProof, mintFor, wlStartDate, wlCost, wlMaxMint);
+                merkleProof, merkleLeaf);
             return;
         }
         
-        uint mintedNftId = verifyNewMint(offer, attestation, amount, seller, wlCost);
-        checkMerkle(offer.nftContract, mintedNftId, amount, offer.merkleRoot, merkleProof, mintFor, wlStartDate, wlCost, wlMaxMint);
+        uint mintedNftId = verifyNewMint(offer, attestation, amount, seller, merkleLeaf.cost);
+        checkMerkle(offer.nftContract, mintedNftId, amount, offer.merkleRoot, merkleProof, merkleLeaf);
     }
 
     event MintStopped(bytes32 editionHash);
@@ -160,23 +160,30 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         stopMint(nftContract, nftId, cost, startDate, endDate, maxToMint, merkleRoot);
     }
 
+    struct MerkleLeaf {
+        address mintFor;
+        uint startDate;
+        uint cost;
+        uint maxMint;
+    }
+
     function checkMerkle(address nftContract, uint nftId, uint amount,
-            bytes32 merkleRoot, bytes32[] calldata merkleProof, address mintFor, uint startDate, uint cost, uint maxMint) internal {
-        if (mintFor != msg.sender) {
+            bytes32 merkleRoot, bytes32[] calldata merkleProof, MerkleLeaf calldata merkleLeaf) internal {
+        if (merkleLeaf.mintFor != msg.sender) {
             IDelegationRegistry dr = IDelegationRegistry(0x00000000000076A84feF008CDAbe6409d2FE638B);
-            require(dr.checkDelegateForContract(msg.sender, mintFor, address(this)), "Invalid delegate");
+            require(dr.checkDelegateForContract(msg.sender, merkleLeaf.mintFor, address(this)), "Invalid delegate");
         }
-        bytes32 leaf = keccak256(abi.encode(mintFor, startDate, cost, maxMint));
+        bytes32 leaf = keccak256(abi.encode(merkleLeaf));
         require(MerkleProof.verifyCalldata(merkleProof, merkleRoot, leaf), "bad merkle proof");
-        nftsMintedByAddress[nftContract][nftId][mintFor] += amount;
-        require(nftsMintedByAddress[nftContract][nftId][mintFor] <= maxMint, ">maxMint");
+        nftsMintedByAddress[nftContract][nftId][merkleLeaf.mintFor] += amount;
+        require(nftsMintedByAddress[nftContract][nftId][merkleLeaf.mintFor] <= merkleLeaf.maxMint, ">maxMint");
     }
 
     function mintWithMerkle(uint amount, address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, address seller, bytes32 merkleRoot,
-            bytes32[] calldata merkleProof, address mintFor, uint wlStartDate, uint wlCost, uint wlMaxMint) payable public {
-        checkMerkle(nftContract, nftId, amount, merkleRoot, merkleProof, mintFor, wlStartDate, wlCost, wlMaxMint);
+            bytes32[] calldata merkleProof, MerkleLeaf calldata merkleLeaf) payable public {
+        checkMerkle(nftContract, nftId, amount, merkleRoot, merkleProof, merkleLeaf);
         bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, seller, merkleRoot);
-        mintExisting(editionHash, amount, nftContract, nftId, wlCost, wlStartDate, endDate, maxToMint, seller);
+        mintExisting(editionHash, amount, nftContract, nftId, merkleLeaf.cost, merkleLeaf.startDate, endDate, maxToMint, seller);
     }
 
     function mintExisting(bytes32 editionHash, uint amount, address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, address seller) internal {

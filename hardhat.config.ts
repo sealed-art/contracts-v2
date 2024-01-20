@@ -6,6 +6,7 @@ const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.18",
     settings: {
+      viaIR: true,
       optimizer: {
         enabled: true,
         runs: 4294967,
@@ -21,12 +22,12 @@ const config: HardhatUserConfig = {
     },
     fuji: {
       url: 'https://rpc.ankr.com/avalanche_fuji',
-      accounts: [process.env.PRIVATEKEY!],
+      //accounts: [process.env.PRIVATEKEY!],
       gasMultiplier: 1.5,
     },
     mainnet: {
       url: "https://rpc.ankr.com/eth",
-      accounts: [process.env.PRIVATEKEY!],
+      //accounts: [process.env.PRIVATEKEY!],
       gasMultiplier: 1.1,
     },
   },

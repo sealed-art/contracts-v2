@@ -210,20 +210,26 @@ describe("SealedEditions", function () {
 
         const cost = eth("2")
 
+        const merkleLeaf = {
+            mintFor: buyer.address,
+            startDate:0,
+            cost:eth(0.5),
+            maxMint:5
+        }
         const { offer, attestation } = await getSigs(seller, buyer, sequencer, sign, editions, nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot)
-        await editions.connect(buyer).mintNewWithMerkle(offer, attestation, 1, proof, buyer.address, 0, eth(0.5), 5, { value: eth(0.5) })
-        await editions.connect(buyer).mintNewWithMerkle(offer, attestation, 2, proof, buyer.address, 0, eth(0.5), 5, { value: eth(1) })
-        await expect(editions.connect(delegate).mintNewWithMerkle(offer, attestation, 1, proof, buyer.address, 0, eth(0.5), 5, { value: eth(0.5) })).to.be.revertedWith("Invalid delegate")
-        await expect(editions.connect(buyer).mintNewWithMerkle(offer, attestation, 3, proof, buyer.address, 0, eth(0.5), 5, { value: eth(0.5) })).to.be.revertedWith(">maxMint")
-        await expect(editions.connect(buyer).mintNewWithMerkle(offer, attestation, 3, proof, buyer.address, 10, eth(0.5), 5, { value: eth(0.5) })).to.be.revertedWith("bad merkle proof")
+        await editions.connect(buyer).mintNewWithMerkle(offer, attestation, 1, proof, merkleLeaf, { value: eth(0.5) })
+        await editions.connect(buyer).mintNewWithMerkle(offer, attestation, 2, proof, merkleLeaf, { value: eth(1) })
+        await expect(editions.connect(delegate).mintNewWithMerkle(offer, attestation, 1, proof, merkleLeaf, { value: eth(0.5) })).to.be.revertedWith("Invalid delegate")
+        await expect(editions.connect(buyer).mintNewWithMerkle(offer, attestation, 3, proof, merkleLeaf, { value: eth(0.5) })).to.be.revertedWith(">maxMint")
+        await expect(editions.connect(buyer).mintNewWithMerkle(offer, attestation, 3, proof, {...merkleLeaf, startDate: 10}, { value: eth(0.5) })).to.be.revertedWith("bad merkle proof")
         await editions.connect(buyer).mintWithMerkle(1, nftContract, 4n, cost, startDate, endDate, maxToMint, seller.address, merkleRoot,
-            proof, buyer.address, 0, eth(0.5), 5, { value: eth(0.5) })
+            proof, merkleLeaf, { value: eth(0.5) })
         
         // test with delegation
         const dr = new ethers.Contract("0x00000000000076A84feF008CDAbe6409d2FE638B", [
             "function delegateForContract(address delegate, address contract_, bool value) external",
         ], buyer)
         await dr.delegateForContract(delegate, await editions.getAddress(), true)
-        await editions.connect(delegate).mintNewWithMerkle(offer, attestation, 1, proof, buyer.address, 0, eth(0.5), 5, { value: eth(0.5) })
+        await editions.connect(delegate).mintNewWithMerkle(offer, attestation, 1, proof, merkleLeaf, { value: eth(0.5) })
     })
 })
