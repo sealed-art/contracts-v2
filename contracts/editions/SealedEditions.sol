@@ -35,7 +35,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         feeMultiplier = _feeMultiplier;
     }
 
-    function withdrawFees(address payable receiver) external onlyOwner(){
+    function withdrawFees(address payable receiver) external onlyOwner {
         _transferETH(receiver, address(this).balance);
     }
 

@@ -136,6 +136,7 @@ describe("SealedEditions", function () {
 
         const treasuryAddress = "0x1f9090aae28b8a3dceadf281b0f12828e676c111" // random address
         expect(await sequencer.provider.getBalance(treasuryAddress)).to.eq(0)
+        await expect(editions.connect(sequencer).withdrawFees(treasuryAddress)).to.be.revertedWith("Ownable: caller is not the owner")
         await editions.connect(owner).withdrawFees(treasuryAddress)
         expect(await sequencer.provider.getBalance(treasuryAddress)).to.eq(eth(5*0.1*0.02))
         expect(await sequencer.provider.getBalance(await editions.getAddress())).to.eq(0)
@@ -165,6 +166,16 @@ describe("SealedEditions", function () {
         const { offer, attestation } = await getSigs(seller, buyer, sequencer, sign, editions, nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot)
         await editions.connect(seller).cancelOffer(1)
         await expect(editions.connect(buyer).mintNew(offer, attestation, 1, { value: eth(0.1) })).to.be.revertedWith(">maxToMint")
+    })
+
+    it("changeAdminConfig", async function () {
+        const { sequencer, seller, owner, editions } = await loadFixture(deployExchangeFixture);
+
+        await expect(editions.connect(sequencer).changeAdminConfig(sequencer.address, eth(0.95))).to.be.revertedWith("Ownable: caller is not the owner")
+        await editions.connect(owner).changeAdminConfig(seller.address, eth(0.95))
+        await expect(editions.connect(owner).changeAdminConfig(seller.address, eth(0.1))).to.be.revertedWith(">MAX_PROTOCOL_FEE")
+        await expect(editions.connect(owner).changeAdminConfig(seller.address, eth(1)+1n)).to.be.revertedWith(">MAX_PROTOCOL_FEE")
+        await expect(editions.connect(owner).changeAdminConfig("0x0000000000000000000000000000000000000000", eth(0.95))).to.be.revertedWith("0x0 sequencer not allowed")
     })
 
     it("createMint", async function () {
