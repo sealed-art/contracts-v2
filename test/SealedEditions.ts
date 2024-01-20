@@ -20,7 +20,7 @@ function paddedBuffer({addr, startDate, cost, maxMint}:{addr:string, startDate:n
 
 describe("SealedEditions", function () {
     async function deployExchangeFixture() {
-        const [owner, sequencer, seller, buyer] = await ethers.getSigners();
+        const [owner, sequencer, seller, buyer, delegate] = await ethers.getSigners();
 
         const editions = await (await ethers.getContractFactory("SealedEditions")).deploy(sequencer.address);
         const artist = await ethers.getImpersonatedSigner("0x334f95d8ffdb85a0297c6f7216e793d08ab45b48");
@@ -39,7 +39,17 @@ describe("SealedEditions", function () {
             return signRaw(signer, types, value, contract ?? await editions.getAddress(), chainIdHex)
         }
 
-        return { editions, artist, manifoldContract, sequencer, seller, buyer, owner, sign };
+        const nftContract = await manifoldContract.getAddress(),
+            uri = "ipfs://QmbWjQEGi4qAAkZWVEiDvdkk7fu91kRJLEqb9mD5w8esse",
+            cost = eth("0.1"),
+            startDate = 0,
+            endDate = (await time.latest()) + 10 * 60,
+            maxToMint = 100,
+            merkleRoot = "0x0000000000000000000000000000000000000000000000000000000000000000"
+
+        return { editions, artist, manifoldContract, sequencer, seller, buyer, owner, delegate, sign, defaultParams:{
+            nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot
+        } };
     }
     async function getSigs(seller: any, buyer: any, sequencer: any, sign: any, editions: any, nftContract: string,
         uri: string,
@@ -94,15 +104,8 @@ describe("SealedEditions", function () {
         return { offer, attestation }
     }
     it("basic flow", async function () {
-        const { sequencer, seller, buyer, owner, sign, editions, manifoldContract } = await loadFixture(deployExchangeFixture);
+        const { sequencer, seller, buyer, owner, sign, editions, manifoldContract, defaultParams:{ nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot } } = await loadFixture(deployExchangeFixture);
 
-        const nftContract = await manifoldContract.getAddress(),
-            uri = "ipfs://QmbWjQEGi4qAAkZWVEiDvdkk7fu91kRJLEqb9mD5w8esse",
-            cost = eth("0.1"),
-            startDate = 0,
-            endDate = (await time.latest()) + 10 * 60,
-            maxToMint = 100,
-            merkleRoot = "0x0000000000000000000000000000000000000000000000000000000000000000"
         const { offer, attestation } = await getSigs(seller, buyer, sequencer, sign, editions, nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot)
         const nftId = 4n
         await expect(editions.connect(buyer).mint(1, nftContract, nftId, cost, startDate, endDate, maxToMint, seller.address, merkleRoot, {
@@ -139,15 +142,8 @@ describe("SealedEditions", function () {
     })
 
     it("editMint", async function () {
-        const { sequencer, seller, buyer, sign, editions, manifoldContract } = await loadFixture(deployExchangeFixture);
+        const { sequencer, seller, buyer, sign, editions, defaultParams:{ nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot } } = await loadFixture(deployExchangeFixture);
 
-        const nftContract = await manifoldContract.getAddress(),
-            uri = "ipfs://QmbWjQEGi4qAAkZWVEiDvdkk7fu91kRJLEqb9mD5w8esse",
-            cost = eth("0.1"),
-            startDate = 0,
-            endDate = (await time.latest()) + 10 * 60,
-            maxToMint = 100,
-            merkleRoot = "0x0000000000000000000000000000000000000000000000000000000000000000"
         const { offer, attestation } = await getSigs(seller, buyer, sequencer, sign, editions, nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot)
         const mintTx = await editions.connect(buyer).mintNew(offer, attestation, 1, {
             value: eth(0.1)
@@ -163,8 +159,29 @@ describe("SealedEditions", function () {
         await editions.connect(buyer).mintNew(sigs2.offer, sigs2.attestation, 1, { value: eth(1) })
     })
 
+    it("cancelOffer", async function () {
+        const { sequencer, seller, buyer, sign, editions, defaultParams:{ nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot } } = await loadFixture(deployExchangeFixture);
+
+        const { offer, attestation } = await getSigs(seller, buyer, sequencer, sign, editions, nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot)
+        await editions.connect(seller).cancelOffer(1)
+        await expect(editions.connect(buyer).mintNew(offer, attestation, 1, { value: eth(0.1) })).to.be.revertedWith(">maxToMint")
+    })
+
+    it("createMint", async function () {
+        const { sequencer, seller, buyer, sign, editions, defaultParams:{ nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot } } = await loadFixture(deployExchangeFixture);
+
+        const { offer, attestation } = await getSigs(seller, buyer, sequencer, sign, editions, nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot)
+        const mintTx = await editions.connect(buyer).mintNew(offer, attestation, 1, { value: eth(0.1) });
+        const nftId = ((await mintTx.wait())!.logs!.find((l: any) => l.fragment?.name === "Mint")! as any).args[1]
+        await editions.connect(seller).stopMint(nftContract, nftId, cost, startDate, endDate, maxToMint, merkleRoot)
+        await expect(editions.connect(buyer).mint(1, nftContract, nftId, cost, startDate, endDate, maxToMint, seller.address, merkleRoot, { value: eth(0.1) }))
+            .to.be.revertedWithPanic("0x11") // overflow
+        await editions.connect(seller).createMint(nftContract, nftId, cost, startDate, endDate, maxToMint, merkleRoot, 1)
+        await editions.connect(buyer).mint(1, nftContract, nftId, cost, startDate, endDate, maxToMint, seller.address, merkleRoot, { value: eth(0.1) })
+    })
+
     it("merkle mint", async function () {
-        const { sequencer, seller, buyer, sign, editions, manifoldContract } = await loadFixture(deployExchangeFixture);
+        const { sequencer, seller, buyer, sign, editions, delegate, defaultParams:{ nftContract, uri, startDate, endDate, maxToMint } } = await loadFixture(deployExchangeFixture);
 
         const wl = [
             {
@@ -174,13 +191,13 @@ describe("SealedEditions", function () {
                 maxMint:5
             },
             {
-                addr: buyer.address,
+                addr: seller.address,
                 startDate:1,
                 cost:eth(0.5),
                 maxMint:5
             },
             {
-                addr: buyer.address,
+                addr: sequencer.address,
                 startDate:2,
                 cost:eth(0.5),
                 maxMint:5
@@ -191,18 +208,22 @@ describe("SealedEditions", function () {
         const proof = tree.getHexProof(leaf)
         const merkleRoot = tree.getHexRoot()
 
-        const nftContract = await manifoldContract.getAddress(),
-            uri = "ipfs://QmbWjQEGi4qAAkZWVEiDvdkk7fu91kRJLEqb9mD5w8esse",
-            cost = eth("2"),
-            startDate = (await time.latest()) + 1 * 60,
-            endDate = (await time.latest()) + 10 * 60,
-            maxToMint = 100
+        const cost = eth("2")
 
         const { offer, attestation } = await getSigs(seller, buyer, sequencer, sign, editions, nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot)
         await editions.connect(buyer).mintNewWithMerkle(offer, attestation, 1, proof, buyer.address, 0, eth(0.5), 5, { value: eth(0.5) })
         await editions.connect(buyer).mintNewWithMerkle(offer, attestation, 2, proof, buyer.address, 0, eth(0.5), 5, { value: eth(1) })
-        await expect(editions.connect(seller).mintNewWithMerkle(offer, attestation, 1, proof, buyer.address, 0, eth(0.5), 5, { value: eth(0.5) })).to.be.revertedWith("Invalid delegate")
+        await expect(editions.connect(delegate).mintNewWithMerkle(offer, attestation, 1, proof, buyer.address, 0, eth(0.5), 5, { value: eth(0.5) })).to.be.revertedWith("Invalid delegate")
+        await expect(editions.connect(buyer).mintNewWithMerkle(offer, attestation, 3, proof, buyer.address, 0, eth(0.5), 5, { value: eth(0.5) })).to.be.revertedWith(">maxMint")
+        await expect(editions.connect(buyer).mintNewWithMerkle(offer, attestation, 3, proof, buyer.address, 10, eth(0.5), 5, { value: eth(0.5) })).to.be.revertedWith("bad merkle proof")
         await editions.connect(buyer).mintWithMerkle(1, nftContract, 4n, cost, startDate, endDate, maxToMint, seller.address, merkleRoot,
             proof, buyer.address, 0, eth(0.5), 5, { value: eth(0.5) })
+        
+        // test with delegation
+        const dr = new ethers.Contract("0x00000000000076A84feF008CDAbe6409d2FE638B", [
+            "function delegateForContract(address delegate, address contract_, bool value) external",
+        ], buyer)
+        await dr.delegateForContract(delegate, await editions.getAddress(), true)
+        await editions.connect(delegate).mintNewWithMerkle(offer, attestation, 1, proof, buyer.address, 0, eth(0.5), 5, { value: eth(0.5) })
     })
 })

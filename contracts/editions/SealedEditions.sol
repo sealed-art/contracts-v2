@@ -3,7 +3,6 @@ pragma solidity ^0.8.7;
 import "./EIP712Editions.sol";
 import "../shared/Nonces.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 interface UserCollection {
@@ -65,6 +64,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         emit OfferCancelled(msg.sender, nonce);
     }
 
+    event MintCreated(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, address seller, bytes32 merkleRoot);
     event Mint(address nftContract, uint tokenId, uint amount, uint price, address seller, address buyer);
 
     function verifyNewMint(MintOffer calldata offer, MintOfferAttestation calldata attestation, uint amount, address seller, uint realCost) internal returns (uint nftId){
@@ -97,30 +97,32 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         uris[0] = offer.uri;
         uint[] memory nftIds = UserCollection(offer.nftContract).mintExtensionNew(to, amounts, uris); // if its an ipfs uri, separating prefix doesnt improve gas
 
-        nonceToNftId[seller][offer.nonce] = (nftIds[0] << 1) | 1; // assumes nftId will always be < 2**254
-        bytes32 editionHash = calculateEditionHash(offer.nftContract, nftIds[0], offer.cost, offer.startDate, offer.endDate, offer.maxToMint, seller, offer.merkleRoot);
+        nftId = nftIds[0];
+        nonceToNftId[seller][offer.nonce] = (nftId << 1) | 1; // assumes nftId will always be < 2**254
+        bytes32 editionHash = calculateEditionHash(offer.nftContract, nftId, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, seller, offer.merkleRoot);
         editionsMinted[editionHash] += amount;
         require(editionsMinted[editionHash] <= offer.maxToMint, ">maxToMint");
         _distributePrimarySale(realCost, amount, payable(seller));
-        emit Mint(offer.nftContract, nftIds[0], amount, realCost, seller, msg.sender);
-        return nftIds[0];
+        emit MintCreated(offer.nftContract, nftId, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, seller, offer.merkleRoot);
+        emit Mint(offer.nftContract, nftId, amount, realCost, seller, msg.sender);
     }
 
     // IMPORTANT: All modifications to the same offer should reuse the same nonce
     function mintNew(MintOffer calldata offer, MintOfferAttestation calldata attestation, uint amount) external payable {
+        require(offer.startDate < block.timestamp, "startDate");
         address seller = _verifySellMintOffer(offer);
         uint nftId = nonceToNftId[seller][offer.nonce];
         if(nftId != 0){
             mint(amount, offer.nftContract, nftId >> 1, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, seller, offer.merkleRoot);
             return;
         }
-        require(offer.startDate < block.timestamp, "startDate");
         
         verifyNewMint(offer, attestation, amount, seller, offer.cost);
     }
 
     function mintNewWithMerkle(MintOffer calldata offer, MintOfferAttestation calldata attestation, uint amount,
             bytes32[] calldata merkleProof, address mintFor, uint wlStartDate, uint wlCost, uint wlMaxMint) external payable {
+        require(wlStartDate < block.timestamp, "startDate");
         address seller = _verifySellMintOffer(offer);
         uint nftId = nonceToNftId[seller][offer.nonce];
         if(nftId != 0){
@@ -128,7 +130,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
                 merkleProof, mintFor, wlStartDate, wlCost, wlMaxMint);
             return;
         }
-        require(wlStartDate < block.timestamp, "startDate");
+        
         uint mintedNftId = verifyNewMint(offer, attestation, amount, seller, wlCost);
         checkMerkle(offer.nftContract, mintedNftId, amount, offer.merkleRoot, merkleProof, mintFor, wlStartDate, wlCost, wlMaxMint);
     }
@@ -142,14 +144,20 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         emit MintStopped(editionHash);
     }
 
-    event NewMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, address seller, bytes32 merkleRoot);
+    function createMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, bytes32 merkleRoot, uint minted) public {
+        require(msg.sender == UserCollection(nftContract).owner(), "!auth");
+        require(minted > 0, "minted > 0");
+        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, msg.sender, merkleRoot);
+        editionsMinted[editionHash] = minted;
+        emit MintCreated(nftContract, nftId, cost, startDate, endDate, maxToMint, msg.sender, merkleRoot);
+    }
+
     function editMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, bytes32 merkleRoot,
             uint newCost, uint newStartDate, uint newEndDate, uint newMaxToMint, bytes32 newMerkleRoot) external {
+        // Could be optimized by removing duplicated code between stop and create calls, but would rather keep it simple
         bytes32 oldEditionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, msg.sender, merkleRoot);
-        bytes32 newEditionHash = calculateEditionHash(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, msg.sender, newMerkleRoot);
-        editionsMinted[newEditionHash] = editionsMinted[oldEditionHash];
+        createMint(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, newMerkleRoot, editionsMinted[oldEditionHash]);
         stopMint(nftContract, nftId, cost, startDate, endDate, maxToMint, merkleRoot);
-        emit NewMint(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, msg.sender, newMerkleRoot);
     }
 
     function checkMerkle(address nftContract, uint nftId, uint amount,
