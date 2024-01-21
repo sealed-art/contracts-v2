@@ -57,19 +57,29 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         return keccak256(abi.encode(nftContract, nftId, cost, startDate, endDate, maxToMint, seller, merkleRoot));
     }
 
-    event OfferCancelled(address account, uint256 nonce);
-
-    function cancelOffer(uint256 nonce) external {
+    /*
+    We could add a function to reject a specific signature onchain by setting:
         nonceToNftId[msg.sender][nonce] = 1;
-        emit OfferCancelled(msg.sender, nonce);
-    }
+
+    However this would create a potential attack where:
+        1. Seller creates a mint for a bad NFT with nftId = 0
+        2. Seller lists another more appealing NFT through a signature
+        3. User sends a tx calling mintNew()
+        4. Seller finds the tx in mempool and frontruns it by calling cancelOffer() to set nonceToNftId to 1
+        5. User's tx is executed and mints nft with nftId = 0 instead of the new NFT
+
+    There's very little incentive for this attack, because seller is already selling an NFT and by doing this attack they'd be ruining their own reputation,
+    however it's still bad, so for that reason we didn't add this function.
+
+    Instead, on-chain rejections will be handled with increaseCounter(), but we expect most rejections to be handled off-chain through the sequencer.
+    */
 
     event MintCreated(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, address seller, bytes32 merkleRoot);
     event Mint(address nftContract, uint tokenId, uint amount, uint price, address seller, address buyer);
 
     function verifyNewMint(MintOffer calldata offer, MintOfferAttestation calldata attestation, uint amount, address seller, uint realCost) internal returns (uint nftId){
         require(amount > 0, "amount != 0");
-        nonceToNftId[seller][offer.nonce] = 1; // temporary value to avoid reentrancy
+        nonceToNftId[seller][offer.nonce] = type(uint).max; // temporary value to avoid reentrancy
         require(seller != address(0) && seller == UserCollection(offer.nftContract).owner(), "!auth");
         require(offer.counter > accountCounter[seller], "<counter");
         require(attestation.offerHash == keccak256(abi.encode(

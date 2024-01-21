@@ -160,12 +160,12 @@ describe("SealedEditions", function () {
         await editions.connect(buyer).mintNew(sigs2.offer, sigs2.attestation, 1, { value: eth(1) })
     })
 
-    it("cancelOffer", async function () {
+    it("increaseCounter", async function () {
         const { sequencer, seller, buyer, sign, editions, defaultParams:{ nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot } } = await loadFixture(deployExchangeFixture);
 
         const { offer, attestation } = await getSigs(seller, buyer, sequencer, sign, editions, nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot)
-        await editions.connect(seller).cancelOffer(1)
-        await expect(editions.connect(buyer).mintNew(offer, attestation, 1, { value: eth(0.1) })).to.be.revertedWith(">maxToMint")
+        await editions.connect(seller).increaseCounter(100)
+        await expect(editions.connect(buyer).mintNew(offer, attestation, 1, { value: eth(0.1) })).to.be.revertedWith("<counter")
     })
 
     it("changeAdminConfig", async function () {
