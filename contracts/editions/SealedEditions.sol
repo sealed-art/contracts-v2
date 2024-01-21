@@ -12,7 +12,7 @@ interface UserCollection {
 }
 
 interface IDelegationRegistry {
-    function checkDelegateForContract(address delegate, address vault, address contract_) external view returns (bool);
+    function checkDelegateForContract(address to, address from, address contract_, bytes32 rights) external view returns (bool valid);
 }
 
 contract SealedEditions is EIP712Editions, Ownable, Nonces {
@@ -181,8 +181,8 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
     function checkMerkle(address nftContract, uint nftId, uint amount,
             bytes32 merkleRoot, bytes32[] calldata merkleProof, MerkleLeaf calldata merkleLeaf) internal {
         if (merkleLeaf.mintFor != msg.sender) {
-            IDelegationRegistry dr = IDelegationRegistry(0x00000000000076A84feF008CDAbe6409d2FE638B);
-            require(dr.checkDelegateForContract(msg.sender, merkleLeaf.mintFor, address(this)), "Invalid delegate");
+            IDelegationRegistry dr = IDelegationRegistry(0x00000000000000447e69651d841bD8D104Bed493);
+            require(dr.checkDelegateForContract(msg.sender, merkleLeaf.mintFor, address(this), ""), "Invalid delegate");
         }
         bytes32 leaf = keccak256(abi.encode(merkleLeaf));
         require(MerkleProof.verifyCalldata(merkleProof, merkleRoot, leaf), "bad merkle proof");

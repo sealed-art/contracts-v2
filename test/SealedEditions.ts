@@ -237,10 +237,10 @@ describe("SealedEditions", function () {
             proof, merkleLeaf, { value: eth(0.5) })
         
         // test with delegation
-        const dr = new ethers.Contract("0x00000000000076A84feF008CDAbe6409d2FE638B", [
-            "function delegateForContract(address delegate, address contract_, bool value) external",
+        const dr = new ethers.Contract("0x00000000000000447e69651d841bD8D104Bed493", [
+            "function delegateAll(address to, bytes32 rights, bool enable) external payable returns (bytes32 hash)"
         ], buyer)
-        await dr.delegateForContract(delegate, await editions.getAddress(), true)
+        await dr.delegateAll(delegate, "0x0000000000000000000000000000000000000000000000000000000000000000", true)
         await editions.connect(delegate).mintNewWithMerkle(offer, attestation, 1, proof, merkleLeaf, { value: eth(0.5) })
     })
 })
