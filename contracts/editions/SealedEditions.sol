@@ -202,9 +202,10 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
     function mintExisting(bytes32 editionHash, uint amount, address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, address seller) internal {
         require(block.timestamp > startDate, "<startDate");
         uint minted = editionsMinted[editionHash];
-        require(minted + amount <= maxToMint && minted > 0, ">maxToMint"); // not doing require() after write to save gas for ppl that go over limit
+        uint newMinted = minted + amount;
+        require(newMinted <= maxToMint && minted > 0, ">maxToMint"); // not doing require() after write to save gas for ppl that go over limit
         require(block.timestamp <= endDate, ">endDate");
-        editionsMinted[editionHash] += amount;
+        editionsMinted[editionHash] = newMinted;
         _distributePrimarySale(cost, amount, payable(seller));
 
         address[] memory to = new address[](1);
