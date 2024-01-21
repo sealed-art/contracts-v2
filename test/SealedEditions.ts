@@ -231,8 +231,8 @@ describe("SealedEditions", function () {
         await editions.connect(buyer).mintNewWithMerkle(offer, attestation, 1, proof, merkleLeaf, { value: eth(0.5) })
         await editions.connect(buyer).mintNewWithMerkle(offer, attestation, 2, proof, merkleLeaf, { value: eth(1) })
         await expect(editions.connect(delegate).mintNewWithMerkle(offer, attestation, 1, proof, merkleLeaf, { value: eth(0.5) })).to.be.revertedWith("Invalid delegate")
-        await expect(editions.connect(buyer).mintNewWithMerkle(offer, attestation, 3, proof, merkleLeaf, { value: eth(0.5) })).to.be.revertedWith(">maxMint")
-        await expect(editions.connect(buyer).mintNewWithMerkle(offer, attestation, 3, proof, {...merkleLeaf, startDate: 10}, { value: eth(0.5) })).to.be.revertedWith("bad merkle proof")
+        await expect(editions.connect(buyer).mintNewWithMerkle(offer, attestation, 3, proof, merkleLeaf, { value: eth(1.5) })).to.be.revertedWith(">maxMint")
+        await expect(editions.connect(buyer).mintNewWithMerkle(offer, attestation, 3, proof, {...merkleLeaf, startDate: 10}, { value: eth(1.5) })).to.be.revertedWith("bad merkle proof")
         await editions.connect(buyer).mintWithMerkle(1, nftContract, 4n, cost, startDate, endDate, maxToMint, seller.address, merkleRoot,
             proof, merkleLeaf, { value: eth(0.5) })
         

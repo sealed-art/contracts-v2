@@ -85,6 +85,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
 
     function verifyNewMint(MintOffer calldata offer, MintOfferAttestation calldata attestation, uint amount, address seller, uint realCost) internal returns (uint nftId){
         require(amount > 0, "amount != 0");
+        require(attestation.deadline > block.timestamp && offer.deadline > block.timestamp && offer.endDate > block.timestamp, ">deadline");
         nonceToNftId[seller][offer.nonce] = type(uint).max; // temporary value to avoid reentrancy
         require(seller != address(0) && seller == UserCollection(offer.nftContract).owner(), "!auth");
         require(offer.counter > accountCounter[seller], "<counter");
@@ -102,7 +103,6 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
             offer.counter,
             offer.nonce
         )), "!offerHash");
-        require(attestation.deadline > block.timestamp && offer.deadline > block.timestamp && offer.endDate > block.timestamp, ">deadline");
         require(_verifyAttestation(attestation) == sequencer, "!sequencer"); // No need to check against address(0) because sequencer will never be 0x0
 
         address[] memory to = new address[](1);
@@ -201,16 +201,16 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
 
     function mintWithMerkle(uint amount, address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, address seller, bytes32 merkleRoot,
             bytes32[] calldata merkleProof, MerkleLeaf calldata merkleLeaf) payable public {
-        checkMerkle(nftContract, nftId, amount, merkleRoot, merkleProof, merkleLeaf);
         bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, seller, merkleRoot);
         mintExisting(editionHash, amount, nftContract, nftId, merkleLeaf.cost, merkleLeaf.startDate, endDate, maxToMint, seller);
+        checkMerkle(nftContract, nftId, amount, merkleRoot, merkleProof, merkleLeaf);
     }
 
     function mintExisting(bytes32 editionHash, uint amount, address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, address seller) internal {
-        require(block.timestamp > startDate, "<startDate");
         uint minted = editionsMinted[editionHash];
         uint newMinted = minted + amount;
         require(newMinted <= maxToMint && minted > 0, ">maxToMint"); // not doing require() after write to save gas for ppl that go over limit
+        require(block.timestamp > startDate, "<startDate");
         require(block.timestamp <= endDate, ">endDate");
         editionsMinted[editionHash] = newMinted;
         _distributePrimarySale(cost, amount, payable(seller));
