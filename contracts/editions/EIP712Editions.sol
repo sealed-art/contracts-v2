@@ -13,6 +13,7 @@ abstract contract EIP712Editions is EIP712Base {
         uint256 startDate;
         uint256 endDate;
         uint256 maxToMint;
+        uint256 maxPerWallet;
         bytes32 merkleRoot;
         uint256 deadline;
         uint256 counter;
@@ -23,7 +24,7 @@ abstract contract EIP712Editions is EIP712Base {
         return _verifySig(
             abi.encode(
                 keccak256(
-                    "SellOffer(address nftContract,string uri,uint256 cost,uint256 startDate,uint256 endDate,uint256 maxToMint,bytes32 merkleRoot,uint256 deadline,uint256 counter,uint256 nonce)"
+                    "SellOffer(address nftContract,string uri,uint256 cost,uint256 startDate,uint256 endDate,uint256 maxToMint,uint256 maxPerWallet,bytes32 merkleRoot,uint256 deadline,uint256 counter,uint256 nonce)"
                 ),
                 packet.nftContract,
                 keccak256(abi.encodePacked(packet.uri)),
@@ -31,6 +32,7 @@ abstract contract EIP712Editions is EIP712Base {
                 packet.startDate,
                 packet.endDate,
                 packet.maxToMint,
+                packet.maxPerWallet,
                 packet.merkleRoot,
                 packet.deadline,
                 packet.counter,
