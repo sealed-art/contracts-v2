@@ -28,15 +28,21 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         sequencer = _sequencer;
     }
 
+    event AdminConfigChanged(address sequencer, uint feeMultiplier);
+
     function changeAdminConfig(address _sequencer, uint _feeMultiplier) external onlyOwner {
         require(_sequencer != address(0), "0x0 sequencer not allowed");
         sequencer = _sequencer;
         require(_feeMultiplier >= MIN_WITHOUT_FEE && _feeMultiplier <= 1e18, ">MAX_PROTOCOL_FEE");
         feeMultiplier = _feeMultiplier;
+        emit AdminConfigChanged(_sequencer, _feeMultiplier);
     }
+
+    event FeesWithdrawn(address receiver);
 
     function withdrawFees(address payable receiver) external onlyOwner {
         _transferETH(receiver, address(this).balance);
+        emit FeesWithdrawn(receiver);
     }
 
     function _transferETH(address payable receiver, uint256 amount) internal {
