@@ -186,8 +186,10 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         }
         bytes32 leaf = keccak256(abi.encode(merkleLeaf));
         require(MerkleProof.verifyCalldata(merkleProof, merkleRoot, leaf), "bad merkle proof");
-        nftsMintedByAddress[nftContract][nftId][merkleLeaf.mintFor] += amount;
-        require(nftsMintedByAddress[nftContract][nftId][merkleLeaf.mintFor] <= merkleLeaf.maxMint, ">maxMint");
+        uint minted = nftsMintedByAddress[nftContract][nftId][merkleLeaf.mintFor];
+        minted += amount;
+        nftsMintedByAddress[nftContract][nftId][merkleLeaf.mintFor] = minted;
+        require(minted <= merkleLeaf.maxMint, ">maxMint");
     }
 
     function mintWithMerkle(uint amount, address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, address seller, bytes32 merkleRoot,
