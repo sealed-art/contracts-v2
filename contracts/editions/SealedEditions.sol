@@ -147,9 +147,9 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
 
     event MintStopped(bytes32 editionHash);
 
-    function stopMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, bytes32 merkleRoot) public {
+    function stopMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, address seller, bytes32 merkleRoot) public {
         require(msg.sender == UserCollection(nftContract).owner(), "!auth");
-        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, msg.sender, merkleRoot);
+        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, seller, merkleRoot);
         editionsMinted[editionHash] = type(uint256).max;
         emit MintStopped(editionHash);
     }
@@ -166,8 +166,9 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
             uint newCost, uint newStartDate, uint newEndDate, uint newMaxToMint, bytes32 newMerkleRoot) external {
         // Could be optimized by removing duplicated code between stop and create calls, but would rather keep it simple
         bytes32 oldEditionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, msg.sender, merkleRoot);
-        createMint(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, newMerkleRoot, editionsMinted[oldEditionHash]);
-        stopMint(nftContract, nftId, cost, startDate, endDate, maxToMint, merkleRoot);
+        uint minted = editionsMinted[oldEditionHash];
+        stopMint(nftContract, nftId, cost, startDate, endDate, maxToMint, msg.sender, merkleRoot);
+        createMint(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, newMerkleRoot, minted);
     }
 
     struct MerkleLeaf {

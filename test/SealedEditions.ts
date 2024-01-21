@@ -129,7 +129,7 @@ describe("SealedEditions", function () {
             .to.be.revertedWith("msg.value")
         await expect(editions.connect(buyer).mint(96, nftContract, nftId, cost, startDate, endDate, maxToMint, seller.address, merkleRoot, { value: eth(9.5) }))
             .to.be.revertedWith(">maxToMint")
-        await editions.connect(seller).stopMint(nftContract, nftId, cost, startDate, endDate, maxToMint, merkleRoot)
+        await editions.connect(seller).stopMint(nftContract, nftId, cost, startDate, endDate, maxToMint, seller.address, merkleRoot)
         await expect(editions.connect(buyer).mint(1, nftContract, nftId, cost, startDate, endDate, maxToMint, seller.address, merkleRoot, { value: eth(0.1) }))
             .to.be.revertedWithPanic("0x11") // overflow
         expect(await manifoldContract.uri(nftId)).to.eq(uri)
@@ -184,7 +184,7 @@ describe("SealedEditions", function () {
         const { offer, attestation } = await getSigs(seller, buyer, sequencer, sign, editions, nftContract, uri, cost, startDate, endDate, maxToMint, merkleRoot)
         const mintTx = await editions.connect(buyer).mintNew(offer, attestation, 1, { value: eth(0.1) });
         const nftId = ((await mintTx.wait())!.logs!.find((l: any) => l.fragment?.name === "Mint")! as any).args[1]
-        await editions.connect(seller).stopMint(nftContract, nftId, cost, startDate, endDate, maxToMint, merkleRoot)
+        await editions.connect(seller).stopMint(nftContract, nftId, cost, startDate, endDate, maxToMint, seller.address, merkleRoot)
         await expect(editions.connect(buyer).mint(1, nftContract, nftId, cost, startDate, endDate, maxToMint, seller.address, merkleRoot, { value: eth(0.1) }))
             .to.be.revertedWithPanic("0x11") // overflow
         await editions.connect(seller).createMint(nftContract, nftId, cost, startDate, endDate, maxToMint, merkleRoot, 1)
