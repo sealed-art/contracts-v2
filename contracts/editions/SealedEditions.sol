@@ -154,6 +154,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         emit MintStopped(editionHash);
     }
 
+    // Shouldn't be used to change numbers on an active mint because it can be frontran
     function createMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, bytes32 merkleRoot, uint minted) public {
         require(msg.sender == UserCollection(nftContract).owner(), "!auth");
         require(minted > 0, "minted > 0");
