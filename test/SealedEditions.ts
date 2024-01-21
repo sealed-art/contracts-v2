@@ -155,7 +155,7 @@ describe("SealedEditions", function () {
         })
         const nftId = ((await mintTx.wait())!.logs!.find((l: any) => l.fragment?.name === "Mint")! as any).args[1]
         await expect(editions.editMint(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, merkleRoot, eth(1), 1, endDate+1, 10, maxPerWallet, merkleRoot))
-            .to.be.revertedWith("!auth")
+            .to.be.revertedWith("Wallet is not an administrator for contract")
         await editions.connect(seller).editMint(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, merkleRoot, eth(1), 1, endDate+1, 10, maxPerWallet, merkleRoot)
         await expect(editions.connect(buyer).mintNew(offer, attestation, 1, { value: eth(0.1) })).to.be.revertedWithPanic("0x11")
         await expect(editions.connect(buyer).mint(1, nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, 
@@ -180,6 +180,26 @@ describe("SealedEditions", function () {
         await expect(editions.connect(owner).changeAdminConfig(seller.address, eth(0.1))).to.be.revertedWith(">MAX_PROTOCOL_FEE")
         await expect(editions.connect(owner).changeAdminConfig(seller.address, eth(1)+1n)).to.be.revertedWith(">MAX_PROTOCOL_FEE")
         await expect(editions.connect(owner).changeAdminConfig("0x0000000000000000000000000000000000000000", eth(0.95))).to.be.revertedWith("0x0 sequencer not allowed")
+    })
+
+    it("airdrop", async function () {
+        const { sequencer, seller, buyer, delegate, manifoldContract, sign, editions, defaultParams:{ nftContract, uri, cost, startDate, endDate, maxToMint, maxPerWallet, merkleRoot } } = await loadFixture(deployExchangeFixture);
+
+        const { offer, attestation } = await getSigs(seller, buyer, sequencer, sign, editions, nftContract, uri, cost, startDate, endDate, maxToMint, maxPerWallet, merkleRoot)
+        const mintTx = await editions.connect(buyer).mintNew(offer, attestation, 1, { value: eth(0.1) })
+        const nftId = ((await mintTx.wait())!.logs!.find((l: any) => l.fragment?.name === "Mint")! as any).args[1]
+        expect(await manifoldContract.balanceOf(buyer.address, nftId)).to.eq(1)
+        await editions.connect(seller).airdrop(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot, [
+            delegate.address,
+            sequencer.address
+        ], [
+            10,
+            20
+        ])
+        expect(await manifoldContract.balanceOf(buyer.address, nftId)).to.eq(1)
+        expect(await manifoldContract.balanceOf(seller.address, nftId)).to.eq(0)
+        expect(await manifoldContract.balanceOf(delegate.address, nftId)).to.eq(10)
+        expect(await manifoldContract.balanceOf(sequencer.address, nftId)).to.eq(20)
     })
 
     it("createMint", async function () {

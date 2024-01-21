@@ -169,16 +169,14 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
 
     event MintStopped(bytes32 editionHash);
 
-    function stopMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address seller, bytes32 merkleRoot) public {
-        require(msg.sender == UserCollection(nftContract).owner(), "!auth");
+    function stopMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address seller, bytes32 merkleRoot) public nftAdmin(nftContract) {
         bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller, merkleRoot);
         editionsMinted[editionHash] = type(uint256).max;
         emit MintStopped(editionHash);
     }
 
     // Shouldn't be used to change numbers on an active mint because it can be frontran
-    function createMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, bytes32 merkleRoot, uint minted) public {
-        require(msg.sender == UserCollection(nftContract).owner(), "!auth");
+    function createMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, bytes32 merkleRoot, uint minted) public nftAdmin(nftContract) {
         require(minted > 0, "minted > 0");
         bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, msg.sender, merkleRoot);
         editionsMinted[editionHash] = minted;
@@ -245,5 +243,29 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller, merkleRoot);
         mintExisting(editionHash, amount, nftContract, nftId, cost, startDate, endDate, maxToMint, seller);
         checkMaxPerWallet(nftContract, nftId, amount, maxPerWallet);
+    }
+    
+    event Airdropped(address nftContract, uint nftId, address seller, address[] recipients, uint256[] amounts);
+
+    function airdrop(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address seller, bytes32 merkleRoot,
+        address[] calldata recipients, uint256[] calldata amounts) external nftAdmin(nftContract) {
+        require(recipients.length == amounts.length, "Unequal number of recipients and amounts provided");
+
+        uint256 totalAmount;
+        for (uint256 i; i < amounts.length;) {
+            totalAmount += amounts[i];
+            unchecked{ ++i; }
+        }
+
+        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller, merkleRoot);
+        uint minted = editionsMinted[editionHash];
+        uint newMinted = minted + totalAmount;
+        require(newMinted <= maxToMint && minted > 0, ">maxToMint");
+        editionsMinted[editionHash] = newMinted;
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = nftId;
+        UserCollection(nftContract).mintExtensionExisting(recipients, tokenIds, amounts);
+        emit Airdropped(nftContract, nftId, msg.sender, recipients, amounts);
     }
 }
