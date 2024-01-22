@@ -8,7 +8,6 @@ import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 interface UserCollection {
     function mintExtensionNew(address[] calldata to, uint256[] calldata amounts, string[] calldata uris) external returns (uint256[] memory);
     function mintExtensionExisting(address[] calldata to, uint256[] calldata tokenIds, uint256[] calldata amounts) external;
-    function owner() external view returns (address);
     function isAdmin(address admin) external view returns (bool);
 }
 
@@ -93,7 +92,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         require(amount > 0, "amount != 0");
         require(attestation.deadline > block.timestamp && offer.deadline > block.timestamp && offer.endDate > block.timestamp, ">deadline");
         nonceToNftId[seller][offer.nonce] = type(uint).max; // temporary value to avoid reentrancy
-        require(seller != address(0) && seller == UserCollection(offer.nftContract).owner(), "!auth");
+        require(seller != address(0) && UserCollection(offer.nftContract).isAdmin(seller), "!auth");
         require(offer.counter > accountCounter[seller], "<counter");
         require(attestation.offerHash == keccak256(abi.encode(
             msg.sender,

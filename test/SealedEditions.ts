@@ -186,6 +186,13 @@ describe("SealedEditions", function () {
         const { sequencer, seller, buyer, delegate, manifoldContract, sign, editions, defaultParams:{ nftContract, uri, cost, startDate, endDate, maxToMint, maxPerWallet, merkleRoot } } = await loadFixture(deployExchangeFixture);
 
         const { offer, attestation } = await getSigs(seller, buyer, sequencer, sign, editions, nftContract, uri, cost, startDate, endDate, maxToMint, maxPerWallet, merkleRoot)
+        await expect(editions.connect(seller).airdrop(nftContract, 1, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot, [
+            delegate.address,
+            sequencer.address
+        ], [
+            10,
+            20
+        ])).to.be.revertedWith(">maxToMint")
         const mintTx = await editions.connect(buyer).mintNew(offer, attestation, 1, { value: eth(0.1) })
         const nftId = ((await mintTx.wait())!.logs!.find((l: any) => l.fragment?.name === "Mint")! as any).args[1]
         expect(await manifoldContract.balanceOf(buyer.address, nftId)).to.eq(1)
