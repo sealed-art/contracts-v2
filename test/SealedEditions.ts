@@ -133,7 +133,8 @@ describe("SealedEditions", function () {
             .to.be.revertedWith("msg.value")
         await expect(editions.connect(buyer).mint(96, nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot, { value: eth(9.5) }))
             .to.be.revertedWith(">maxToMint")
-        await editions.connect(seller).stopMint(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot)
+        await editions.connect(seller).editMint(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot,
+            cost, startDate, endDate, 0, maxPerWallet, seller.address, merkleRoot)
         await expect(editions.connect(buyer).mint(1, nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot, { value: eth(0.1) }))
             .to.be.revertedWithPanic("0x11") // overflow
         expect(await manifoldContract.uri(nftId)).to.eq(uri)
@@ -154,9 +155,9 @@ describe("SealedEditions", function () {
             value: eth(0.1)
         })
         const nftId = ((await mintTx.wait())!.logs!.find((l: any) => l.fragment?.name === "Mint")! as any).args[1]
-        await expect(editions.editMint(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, merkleRoot, eth(1), 1, endDate+1, 10, maxPerWallet, merkleRoot))
+        await expect(editions.editMint(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot, eth(1), 1, endDate+1, 10, maxPerWallet, seller.address, merkleRoot))
             .to.be.revertedWith("Wallet is not an administrator for contract")
-        await editions.connect(seller).editMint(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, merkleRoot, eth(1), 1, endDate+1, 10, maxPerWallet, merkleRoot)
+        await editions.connect(seller).editMint(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot, eth(1), 1, endDate+1, 10, maxPerWallet, seller.address, merkleRoot)
         await expect(editions.connect(buyer).mintNew(offer, attestation, 1, { value: eth(0.1) })).to.be.revertedWithPanic("0x11")
         await expect(editions.connect(buyer).mint(1, nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, 
             seller.address, merkleRoot, { value: eth(0.1) })).to.be.revertedWithPanic("0x11")
@@ -215,11 +216,21 @@ describe("SealedEditions", function () {
         const { offer, attestation } = await getSigs(seller, buyer, sequencer, sign, editions, nftContract, uri, cost, startDate, endDate, maxToMint, maxPerWallet, merkleRoot)
         const mintTx = await editions.connect(buyer).mintNew(offer, attestation, 1, { value: eth(0.1) });
         const nftId = ((await mintTx.wait())!.logs!.find((l: any) => l.fragment?.name === "Mint")! as any).args[1]
-        await editions.connect(seller).stopMint(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot)
+        await editions.connect(seller).editMint(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot, 
+            cost, startDate, endDate, 0, maxPerWallet, seller.address, merkleRoot)
         await expect(editions.connect(buyer).mint(1, nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot, { value: eth(0.1) }))
             .to.be.revertedWithPanic("0x11") // overflow
-        await editions.connect(seller).createMint(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, merkleRoot, 1)
+        await expect(editions.connect(buyer).mint(1, nftContract, nftId, cost, startDate, endDate, 0, maxPerWallet, seller.address, merkleRoot, { value: eth(0.1) }))
+            .to.be.revertedWith(">maxToMint")
+        await editions.connect(seller).editMint(nftContract, nftId, cost, startDate, endDate, 0, maxPerWallet, seller.address, merkleRoot, 
+            cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot)
         await editions.connect(buyer).mint(1, nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot, { value: eth(0.1) })
+
+        await expect(editions.connect(seller).editMint(nftContract, 1, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot, 
+            cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot)).to.be.revertedWith("0 minted")
+        await expect(
+            editions.connect(buyer).mint(1, nftContract, 1, cost, startDate, endDate, maxToMint, maxPerWallet, seller.address, merkleRoot, { value: eth(0.1) })
+        ).to.be.revertedWith(">maxToMint")
     })
 
     it("merkle mint", async function () {

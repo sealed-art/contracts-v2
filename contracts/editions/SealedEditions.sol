@@ -168,27 +168,19 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
 
     event MintStopped(bytes32 editionHash);
 
-    function stopMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address seller, bytes32 merkleRoot) public nftAdmin(nftContract) {
-        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller, merkleRoot);
-        editionsMinted[editionHash] = type(uint256).max;
-        emit MintStopped(editionHash);
-    }
-
-    // Shouldn't be used to change numbers on an active mint because it can be frontran
-    function createMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, bytes32 merkleRoot, uint minted) public nftAdmin(nftContract) {
-        require(minted > 0, "minted > 0");
-        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, msg.sender, merkleRoot);
-        editionsMinted[editionHash] = minted;
-        emit MintCreated(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, msg.sender, merkleRoot);
-    }
-
-    function editMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, bytes32 merkleRoot,
-            uint newCost, uint newStartDate, uint newEndDate, uint newMaxToMint, uint newMaxPerWallet, bytes32 newMerkleRoot) external {
-        // Could be optimized by removing duplicated code between stop and create calls, but would rather keep it simple
-        bytes32 oldEditionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, msg.sender, merkleRoot);
+    function editMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address seller, bytes32 merkleRoot,
+            uint newCost, uint newStartDate, uint newEndDate, uint newMaxToMint, uint newMaxPerWallet, address newSeller, bytes32 newMerkleRoot) external nftAdmin(nftContract) {
+        bytes32 oldEditionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller, merkleRoot);
         uint minted = editionsMinted[oldEditionHash];
-        stopMint(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, msg.sender, merkleRoot);
-        createMint(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, newMaxPerWallet, newMerkleRoot, minted);
+        require(minted > 0, "0 minted");
+
+        editionsMinted[oldEditionHash] = type(uint256).max;
+        emit MintStopped(oldEditionHash);
+
+        // To disable mint just set newMaxToMint = 0
+        bytes32 editionHash = calculateEditionHash(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, newMaxPerWallet, newSeller, newMerkleRoot);
+        editionsMinted[editionHash] = minted;
+        emit MintCreated(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, newMaxPerWallet, newSeller, newMerkleRoot);
     }
 
     struct MerkleLeaf {
