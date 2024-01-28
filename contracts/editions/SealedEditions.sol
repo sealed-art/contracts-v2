@@ -166,8 +166,6 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         checkMerkle(offer.nftContract, mintedNftId, amount, offer.merkleRoot, merkleProof, merkleLeaf);
     }
 
-    event MintStopped(bytes32 editionHash);
-
     function editMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address seller, bytes32 merkleRoot,
             uint newCost, uint newStartDate, uint newEndDate, uint newMaxToMint, uint newMaxPerWallet, address newSeller, bytes32 newMerkleRoot) external nftAdmin(nftContract) {
         bytes32 oldEditionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller, merkleRoot);
@@ -175,7 +173,6 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         require(minted > 0, "0 minted");
 
         editionsMinted[oldEditionHash] = type(uint256).max;
-        emit MintStopped(oldEditionHash);
 
         // To disable mint just set newMaxToMint = 0
         bytes32 editionHash = calculateEditionHash(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, newMaxPerWallet, newSeller, newMerkleRoot);
