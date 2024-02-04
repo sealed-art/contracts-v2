@@ -47,20 +47,20 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
 
     function _transferETH(address payable receiver, uint256 amount) internal {
         (bool success,) = receiver.call{value: amount}("");
-        require(success, "eth send"); // if it fails to send then reverting is ok since its seller thats causing it to fail
+        require(success, "eth send"); // if it fails to send then reverting is ok since its receiver thats causing it to fail
     }
 
-    function _distributePrimarySale(uint256 cost, uint256 amount, address payable seller) internal {
+    function _distributePrimarySale(uint256 cost, uint256 amount, address payable paymentReceiver) internal {
         if(cost > 0){
             uint total = amount * cost;
             require(msg.value == total, "msg.value");
             uint256 amountWithoutFee = (total * feeMultiplier) / 1e18;
-            _transferETH(seller, amountWithoutFee);
+            _transferETH(paymentReceiver, amountWithoutFee);
         }
     }
 
-    function calculateEditionHash(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address seller, bytes32 merkleRoot) pure public returns (bytes32) {
-        return keccak256(abi.encode(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller, merkleRoot));
+    function calculateEditionHash(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address paymentReceiver, bytes32 merkleRoot) pure public returns (bytes32) {
+        return keccak256(abi.encode(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, paymentReceiver, merkleRoot));
     }
 
     modifier nftAdmin(address nftContract) {
@@ -85,8 +85,8 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
     Instead, on-chain rejections will be handled with increaseCounter(), but we expect most rejections to be handled off-chain through the sequencer.
     */
 
-    event MintCreated(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address seller, bytes32 merkleRoot);
-    event Mint(address nftContract, uint tokenId, uint amount, uint price, address seller, address buyer);
+    event MintCreated(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address paymentReceiver, bytes32 merkleRoot, address seller);
+    event Mint(address nftContract, uint tokenId, uint amount, uint price, address buyer);
 
     function verifyNewMint(MintOffer calldata offer, MintOfferAttestation calldata attestation, uint amount, address seller, uint realCost) internal returns (uint nftId){
         require(amount > 0, "amount != 0");
@@ -104,6 +104,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
             offer.endDate,
             offer.maxToMint,
             offer.maxPerWallet,
+            offer.paymentReceiver,
             offer.merkleRoot,
             offer.deadline,
             offer.counter,
@@ -121,12 +122,12 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
 
         nftId = nftIds[0];
         nonceToNftId[seller][offer.nonce] = (nftId << 1) | 1; // assumes nftId will always be < 2**254
-        bytes32 editionHash = calculateEditionHash(offer.nftContract, nftId, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, offer.maxPerWallet, seller, offer.merkleRoot);
+        bytes32 editionHash = calculateEditionHash(offer.nftContract, nftId, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, offer.maxPerWallet, offer.paymentReceiver, offer.merkleRoot);
         editionsMinted[editionHash] += amount;
         require(editionsMinted[editionHash] <= offer.maxToMint, ">maxToMint");
-        _distributePrimarySale(realCost, amount, payable(seller));
-        emit MintCreated(offer.nftContract, nftId, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, offer.maxPerWallet, seller, offer.merkleRoot);
-        emit Mint(offer.nftContract, nftId, amount, realCost, seller, msg.sender);
+        _distributePrimarySale(realCost, amount, payable(offer.paymentReceiver));
+        emit MintCreated(offer.nftContract, nftId, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, offer.maxPerWallet, offer.paymentReceiver, offer.merkleRoot, seller);
+        emit Mint(offer.nftContract, nftId, amount, realCost, msg.sender);
     }
 
     function checkMaxPerWallet(address nftContract, uint nftId, uint amount, uint maxPerWallet) internal {
@@ -143,7 +144,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         address seller = _verifySellMintOffer(offer);
         uint nftId = nonceToNftId[seller][offer.nonce];
         if(nftId != 0){
-            mint(amount, offer.nftContract, nftId >> 1, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, offer.maxPerWallet, seller, offer.merkleRoot);
+            mint(amount, offer.nftContract, nftId >> 1, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, offer.maxPerWallet, offer.paymentReceiver, offer.merkleRoot);
             return;
         }
         
@@ -157,7 +158,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         address seller = _verifySellMintOffer(offer);
         uint nftId = nonceToNftId[seller][offer.nonce];
         if(nftId != 0){
-            mintWithMerkle(amount, offer.nftContract, nftId >> 1, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, offer.maxPerWallet, seller, offer.merkleRoot, 
+            mintWithMerkle(amount, offer.nftContract, nftId >> 1, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, offer.maxPerWallet, offer.paymentReceiver, offer.merkleRoot, 
                 merkleProof, merkleLeaf);
             return;
         }
@@ -166,18 +167,18 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         checkMerkle(offer.nftContract, mintedNftId, amount, offer.merkleRoot, merkleProof, merkleLeaf);
     }
 
-    function editMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address seller, bytes32 merkleRoot,
-            uint newCost, uint newStartDate, uint newEndDate, uint newMaxToMint, uint newMaxPerWallet, address newSeller, bytes32 newMerkleRoot) external nftAdmin(nftContract) {
-        bytes32 oldEditionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller, merkleRoot);
+    function editMint(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address paymentReceiver, bytes32 merkleRoot,
+            uint newCost, uint newStartDate, uint newEndDate, uint newMaxToMint, uint newMaxPerWallet, address newPaymentReceiver, bytes32 newMerkleRoot) external nftAdmin(nftContract) {
+        bytes32 oldEditionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, paymentReceiver, merkleRoot);
         uint minted = editionsMinted[oldEditionHash];
         require(minted > 0, "0 minted");
 
         editionsMinted[oldEditionHash] = type(uint256).max;
 
         // To disable mint just set newMaxToMint = 0
-        bytes32 editionHash = calculateEditionHash(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, newMaxPerWallet, newSeller, newMerkleRoot);
+        bytes32 editionHash = calculateEditionHash(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, newMaxPerWallet, newPaymentReceiver, newMerkleRoot);
         editionsMinted[editionHash] = minted;
-        emit MintCreated(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, newMaxPerWallet, newSeller, newMerkleRoot);
+        emit MintCreated(nftContract, nftId, newCost, newStartDate, newEndDate, newMaxToMint, newMaxPerWallet, newPaymentReceiver, newMerkleRoot, msg.sender);
     }
 
     struct MerkleLeaf {
@@ -201,21 +202,21 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         require(minted <= merkleLeaf.maxMint, ">maxMint");
     }
 
-    function mintWithMerkle(uint amount, address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address seller, bytes32 merkleRoot,
+    function mintWithMerkle(uint amount, address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address paymentReceiver, bytes32 merkleRoot,
             bytes32[] calldata merkleProof, MerkleLeaf calldata merkleLeaf) payable public {
-        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller, merkleRoot);
-        mintExisting(editionHash, amount, nftContract, nftId, merkleLeaf.cost, merkleLeaf.startDate, endDate, maxToMint, seller);
+        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, paymentReceiver, merkleRoot);
+        mintExisting(editionHash, amount, nftContract, nftId, merkleLeaf.cost, merkleLeaf.startDate, endDate, maxToMint, paymentReceiver);
         checkMerkle(nftContract, nftId, amount, merkleRoot, merkleProof, merkleLeaf);
     }
 
-    function mintExisting(bytes32 editionHash, uint amount, address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, address seller) internal {
+    function mintExisting(bytes32 editionHash, uint amount, address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, address paymentReceiver) internal {
         uint minted = editionsMinted[editionHash];
         uint newMinted = minted + amount;
         require(newMinted <= maxToMint && minted > 0, ">maxToMint"); // not doing require() after write to save gas for ppl that go over limit
         require(block.timestamp > startDate, "<startDate");
         require(block.timestamp <= endDate, ">endDate");
         editionsMinted[editionHash] = newMinted;
-        _distributePrimarySale(cost, amount, payable(seller));
+        _distributePrimarySale(cost, amount, payable(paymentReceiver));
 
         address[] memory to = new address[](1);
         to[0] = msg.sender;
@@ -224,18 +225,18 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         uint[] memory amounts = new uint[](1);
         amounts[0] = amount;
         UserCollection(nftContract).mintExtensionExisting(to, tokenIds, amounts);
-        emit Mint(nftContract, nftId, amount, cost, seller, msg.sender);
+        emit Mint(nftContract, nftId, amount, cost, msg.sender);
     }
 
-    function mint(uint amount, address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address seller, bytes32 merkleRoot) payable public {
-        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller, merkleRoot);
-        mintExisting(editionHash, amount, nftContract, nftId, cost, startDate, endDate, maxToMint, seller);
+    function mint(uint amount, address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address paymentReceiver, bytes32 merkleRoot) payable public {
+        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, paymentReceiver, merkleRoot);
+        mintExisting(editionHash, amount, nftContract, nftId, cost, startDate, endDate, maxToMint, paymentReceiver);
         checkMaxPerWallet(nftContract, nftId, amount, maxPerWallet);
     }
     
-    event Airdropped(address nftContract, uint nftId, address seller, address[] recipients, uint256[] amounts);
+    event Airdropped(address nftContract, uint nftId, address paymentReceiver, address[] recipients, uint256[] amounts);
 
-    function airdrop(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address seller, bytes32 merkleRoot,
+    function airdrop(address nftContract, uint nftId, uint cost, uint startDate, uint endDate, uint maxToMint, uint maxPerWallet, address paymentReceiver, bytes32 merkleRoot,
         address[] calldata recipients, uint256[] calldata amounts) external nftAdmin(nftContract) {
         require(recipients.length == amounts.length, "Unequal number of recipients and amounts provided");
 
@@ -245,7 +246,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
             unchecked{ ++i; }
         }
 
-        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, seller, merkleRoot);
+        bytes32 editionHash = calculateEditionHash(nftContract, nftId, cost, startDate, endDate, maxToMint, maxPerWallet, paymentReceiver, merkleRoot);
         uint minted = editionsMinted[editionHash];
         uint newMinted = minted + totalAmount;
         require(newMinted <= maxToMint && minted > 0, ">maxToMint");
