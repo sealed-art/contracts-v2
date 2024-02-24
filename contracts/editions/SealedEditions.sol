@@ -70,7 +70,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
 
     /*
     We could add a function to reject a specific signature onchain by setting:
-        nonceToNftId[msg.sender][nonce] = 1;
+        nonceToNftId[nftContract][nonce] = 1;
 
     However this would create a potential attack where:
         1. Seller creates a mint for a bad NFT with nftId = 0
@@ -91,7 +91,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
     function verifyNewMint(MintOffer calldata offer, MintOfferAttestation calldata attestation, uint amount, address seller, uint realCost) internal returns (uint nftId){
         require(amount > 0, "amount != 0");
         require(attestation.deadline > block.timestamp && offer.deadline > block.timestamp && offer.endDate > block.timestamp, ">deadline");
-        nonceToNftId[seller][offer.nonce] = type(uint).max; // temporary value to avoid reentrancy
+        nonceToNftId[offer.nftContract][offer.nonce] = type(uint).max; // temporary value to avoid reentrancy
         require(seller != address(0) && UserCollection(offer.nftContract).isAdmin(seller), "!auth");
         require(offer.counter > accountCounter[seller], "<counter");
         require(attestation.offerHash == keccak256(abi.encode(
@@ -121,7 +121,7 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
         uint[] memory nftIds = UserCollection(offer.nftContract).mintExtensionNew(to, amounts, uris); // if its an ipfs uri, separating prefix doesnt improve gas
 
         nftId = nftIds[0];
-        nonceToNftId[seller][offer.nonce] = (nftId << 1) | 1; // assumes nftId will always be < 2**254
+        nonceToNftId[offer.nftContract][offer.nonce] = (nftId << 1) | 1; // assumes nftId will always be < 2**254
         bytes32 editionHash = calculateEditionHash(offer.nftContract, nftId, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, offer.maxPerWallet, offer.paymentReceiver, offer.merkleRoot);
         editionsMinted[editionHash] += amount;
         require(editionsMinted[editionHash] <= offer.maxToMint, ">maxToMint");
@@ -141,13 +141,13 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
     // IMPORTANT: All modifications to the same offer should reuse the same nonce
     function mintNew(MintOffer calldata offer, MintOfferAttestation calldata attestation, uint amount) external payable {
         require(offer.startDate < block.timestamp, "startDate");
-        address seller = _verifySellMintOffer(offer);
-        uint nftId = nonceToNftId[seller][offer.nonce];
+        uint nftId = nonceToNftId[offer.nftContract][offer.nonce];
         if(nftId != 0){
             mint(amount, offer.nftContract, nftId >> 1, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, offer.maxPerWallet, offer.paymentReceiver, offer.merkleRoot);
             return;
         }
         
+        address seller = _verifySellMintOffer(offer);
         uint mintedNftId = verifyNewMint(offer, attestation, amount, seller, offer.cost);
         checkMaxPerWallet(offer.nftContract, mintedNftId, amount, offer.maxPerWallet);
     }
@@ -155,14 +155,14 @@ contract SealedEditions is EIP712Editions, Ownable, Nonces {
     function mintNewWithMerkle(MintOffer calldata offer, MintOfferAttestation calldata attestation, uint amount,
             bytes32[] calldata merkleProof, MerkleLeaf calldata merkleLeaf) external payable {
         require(merkleLeaf.startDate < block.timestamp, "startDate");
-        address seller = _verifySellMintOffer(offer);
-        uint nftId = nonceToNftId[seller][offer.nonce];
+        uint nftId = nonceToNftId[offer.nftContract][offer.nonce];
         if(nftId != 0){
             mintWithMerkle(amount, offer.nftContract, nftId >> 1, offer.cost, offer.startDate, offer.endDate, offer.maxToMint, offer.maxPerWallet, offer.paymentReceiver, offer.merkleRoot, 
                 merkleProof, merkleLeaf);
             return;
         }
         
+        address seller = _verifySellMintOffer(offer);
         uint mintedNftId = verifyNewMint(offer, attestation, amount, seller, merkleLeaf.cost);
         checkMerkle(offer.nftContract, mintedNftId, amount, offer.merkleRoot, merkleProof, merkleLeaf);
     }
