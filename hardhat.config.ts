@@ -27,9 +27,16 @@ const config: HardhatUserConfig = {
     },
     mainnet: {
       url: "https://rpc.ankr.com/eth",
-      //accounts: [process.env.PRIVATEKEY!],
-      gasMultiplier: 1.1,
+      accounts: [process.env.PRIVATEKEY!],
     },
+    ...["optimism", "bsc", "avalanche", "fantom", "arbitrum", "polygon", "polygon_zkevm", "base"].reduce((acc, chain)=>({
+      ...acc,
+      [chain]: {
+        url: `https://rpc.ankr.com/${chain}`,
+        accounts: [process.env.PRIVATEKEY!],
+        gasMultiplier: 1.1,
+      }
+    }), {})
   },
   namedAccounts: {
     deployer: 0,

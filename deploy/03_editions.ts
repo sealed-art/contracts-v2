@@ -7,7 +7,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     const { deployer } = await getNamedAccounts();
 
-    await deploy('SealedPool', {
+    await deploy('SealedEditions', {
         from: deployer,
         log: true,
         autoMine: true,
@@ -15,4 +15,4 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     });
 };
 module.exports = func;
-func.tags = ['SealedPool'];
+func.tags = ['SealedEditions'];
