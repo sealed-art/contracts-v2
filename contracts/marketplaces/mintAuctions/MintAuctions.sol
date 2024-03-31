@@ -116,12 +116,12 @@ contract MintAuctions is EIP712, Ownable {
 
     function _verifyMintOfferAlways(MintOffer memory offer, address creator) private {
         require(orderNonces(creator, offer.nonce) == false, "!orderNonce");
-        usedOrderNonces[msg.sender].set(offer.nonce);
+        usedOrderNonces[creator].set(offer.nonce);
     }
 
     function _verifyBuyerMintOfferAlways(BuyerMintOffer memory offer, address creator) private {
         require(orderNonces(creator, offer.nonce) == false, "!orderNonce");
-        usedOrderNonces[msg.sender].set(offer.nonce);
+        usedOrderNonces[creator].set(offer.nonce);
     }
 
     event MintSale(address nftContract, uint tokenId, address buyer, address seller, uint256 price);
