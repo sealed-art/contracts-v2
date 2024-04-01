@@ -225,12 +225,6 @@ contract Auctions is EIP712, Ownable {
         }
     }
 
-    function _distributePrimarySale(uint256 amount, address payable seller) internal {
-        uint256 feeAmount = (amount * feeMultiplier) / 1e18;
-        _transferETH(treasury, feeAmount);
-        _transferETH(seller, amount - feeAmount);
-    }
-
     function _distributeSale(address nftContract, uint256 nftId, uint256 amount, address payable seller) internal {
         uint256 totalRoyalty = 0;
         try royaltyEngine.getRoyalty{gas: 500_000}(nftContract, nftId, amount) returns (address payable[] memory recipients, uint256[] memory amounts) {
