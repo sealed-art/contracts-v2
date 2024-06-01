@@ -32,7 +32,7 @@ contract Auctions is EIP712, Ownable {
     uint256 internal constant MAX_PROTOCOL_FEE = 0.1e18; // 10%
     uint256 public feeMultiplier;
     uint256 public forcedWithdrawDelay = 2 days;
-    RoyaltyEngine public constant royaltyEngine = RoyaltyEngine(0xBc40d21999b4BF120d330Ee3a2DE415287f626C9);
+    RoyaltyEngine public constant royaltyEngine = RoyaltyEngine(0xEF770dFb6D5620977213f55f99bfd781D04BBE15);
     ISealedPool public immutable sealedPool;
 
     enum AuctionState {
