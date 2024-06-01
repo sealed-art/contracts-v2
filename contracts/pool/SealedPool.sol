@@ -5,35 +5,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "../funding/SealedFundingFactory.sol";
 import {BitMaps} from "@openzeppelin/contracts/utils/structs/BitMaps.sol";
 
-interface OldSealedMarket {
-    function deposit(address user) external payable;
-    struct Bid {
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-        bytes32 auctionId;
-        uint256 maxAmount;
-    }
-    struct BidWinner {
-        uint8 v;
-        bytes32 r;
-        bytes32 s;
-        bytes32 auctionId;
-        uint256 amount;
-        address winner;
-    }
-    function settleAuctionWithSealedBids(
-        bytes32[] calldata salts,
-        address payable nftOwner,
-        address nftContract,
-        bytes32 auctionType,
-        uint256 nftId,
-        uint256 reserve,
-        Bid calldata bid,
-        BidWinner calldata bidWinner
-    ) external;
-}
-
 contract SealedPool is EIP712, Ownable {
     using BitMaps for BitMaps.BitMap;
 
@@ -54,7 +25,6 @@ contract SealedPool is EIP712, Ownable {
     // It also allows us to use different security systems for the multiple sequencer keys
     mapping(address => uint256) public sequencers; // Invariant: sequencer[address(0)] == 0 always
     SealedFundingFactory public immutable sealedFundingFactory;
-    OldSealedMarket private constant oldSealedMarket = OldSealedMarket(0x2cBe14b7F60Fbe6A323cBA7Db56f2D916C137F3C);
     uint256 public forcedWithdrawDelay = 7 days;
 
     mapping(address => mapping(uint256 => mapping(uint256 => uint256)))
@@ -62,9 +32,6 @@ contract SealedPool is EIP712, Ownable {
     mapping(address => bool) public guardians;
 
     BitMaps.BitMap private usedNonces;
-
-    //mapping(address => BitMaps.BitMap) private usedOrderNonces;
-    //mapping(address => uint256) public accountCounter;
 
     function balanceOf(address account) public view returns (uint256) {
         return _balances[account];
@@ -245,24 +212,5 @@ contract SealedPool is EIP712, Ownable {
 
     function nonceState(uint256 nonce) public view returns (bool) {
         return usedNonces.get(nonce);
-    }
-
-    function settleOld(
-        bytes32[] calldata salts,
-        bytes32[] calldata oldSalts,
-        address payable nftOwner,
-        address nftContract,
-        bytes32 auctionType,
-        uint256 nftId,
-        uint256 reserve,
-        OldSealedMarket.Bid calldata bid,
-        OldSealedMarket.BidWinner calldata bidWinner
-    ) external {
-        _revealBids(salts, bidWinner.winner);
-        oldSealedMarket.deposit{value: bidWinner.amount}(bidWinner.winner);
-        _balances[bidWinner.winner] -= bidWinner.amount;
-        emit Transfer(bidWinner.winner, address(0), bidWinner.amount);
-        // settleAuction verifies signatures on bid and bidWinner
-        oldSealedMarket.settleAuctionWithSealedBids(oldSalts, nftOwner, nftContract, auctionType, nftId, reserve, bid, bidWinner);
     }
 }
